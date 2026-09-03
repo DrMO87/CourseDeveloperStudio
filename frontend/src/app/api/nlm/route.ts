@@ -6,10 +6,9 @@ import fs from 'fs';
 
 const execFileAsync = promisify(execFile);
 
-const VAULT_ROOT = path.resolve('D:/HUE/DEVELOPED SOFTWARE/CourseDeveloperStudio');
-const NLM_EXE = fs.existsSync('D:/HUE/DEVELOPED SOFTWARE/CourseDeveloperStudio/.venv/Scripts/nlm.exe')
-  ? path.resolve('D:/HUE/DEVELOPED SOFTWARE/CourseDeveloperStudio/.venv/Scripts/nlm.exe')
-  : path.resolve('D:/HUE/DEVELOPED SOFTWARE/Course Developer/.venv/Scripts/nlm.exe');
+const VAULT_ROOT = process.env.VAULT_ROOT ? path.resolve(process.env.VAULT_ROOT) : path.resolve(process.cwd(), '..');
+const defaultNlmPath = path.resolve(VAULT_ROOT, '.venv/Scripts/nlm.exe');
+const NLM_EXE = process.env.NLM_EXE || (fs.existsSync(defaultNlmPath) ? defaultNlmPath : 'nlm');
 
 export const maxDuration = 120;
 export const dynamic = 'force-dynamic';

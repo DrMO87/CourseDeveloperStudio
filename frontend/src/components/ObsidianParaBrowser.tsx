@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function ObsidianParaBrowser({
-  apiBaseUrl = 'http://localhost:5000',
+  apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000',
   projectSlug,
   orgSlug,
   onOpenFile,

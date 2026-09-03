@@ -4,7 +4,7 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-const COURSE_DEVELOPER_PATH = path.resolve('D:/HUE/DEVELOPED SOFTWARE/CourseDeveloperStudio');
+const COURSE_DEVELOPER_PATH = process.env.VAULT_ROOT ? path.resolve(process.env.VAULT_ROOT) : path.resolve(process.cwd(), '..');
 
 export async function GET(req: NextRequest) {
   try {

@@ -4,7 +4,7 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-const VAULT_ROOT = path.resolve('D:/HUE/DEVELOPED SOFTWARE/CourseDeveloperStudio');
+const VAULT_ROOT = process.env.VAULT_ROOT ? path.resolve(process.env.VAULT_ROOT) : path.resolve(process.cwd(), '..');
 
 export async function POST(req: NextRequest) {
   try {

@@ -340,7 +340,7 @@ export function NotebookLMPanel({
 
     const pSlug = project?.slug || 'instrumental-analysis-pharmaceutical';
     const sid = sessionCode || 'Lec 01';
-    const vaultRoot = 'D:/HUE/DEVELOPED SOFTWARE/CourseDeveloperStudio';
+    const vaultRoot = process.env.NEXT_PUBLIC_VAULT_ROOT || '.';
     const projectDir = `${vaultRoot}/vaults/${pSlug}/01_Projects/${pSlug}`;
 
     const sourceCandidates = [
@@ -442,7 +442,7 @@ export function NotebookLMPanel({
     if (!name) return;
     const pSlug = project?.slug || 'instrumental-analysis-pharmaceutical';
     const sid = sessionCode || 'Lec 01';
-    const vaultRoot = 'D:/HUE/DEVELOPED SOFTWARE/CourseDeveloperStudio';
+    const vaultRoot = process.env.NEXT_PUBLIC_VAULT_ROOT || '.';
     const outputDir = `${vaultRoot}/vaults/${pSlug}/80-generation/${sid}`;
 
     setStep('download', 'running', 'Downloading artifacts from NotebookLM...');
@@ -544,7 +544,7 @@ export function NotebookLMPanel({
 
     const pSlug = project?.slug || 'instrumental-analysis-pharmaceutical';
     const sid = sessionCode || 'Lec 01';
-    const vaultRoot = 'D:/HUE/DEVELOPED SOFTWARE/CourseDeveloperStudio';
+    const vaultRoot = process.env.NEXT_PUBLIC_VAULT_ROOT || '.';
     const projectDir = `${vaultRoot}/vaults/${pSlug}/01_Projects/${pSlug}`;
 
     const sourceCandidates = [
