@@ -1,0 +1,138 @@
+/* ─── Google Fonts: Inter & Outfit ─────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Root CSS Custom Properties ────────────────────────── */
+:root {
+  /* Dynamic Active Organization Brand Tokens (defaults to HUE Navy & Gold) */
+  --brand-primary-dyn: #002147;
+  --brand-accent-dyn: #FFB81C;
+  --brand-secondary-dyn: #1929B5;
+
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --font-outfit: 'Outfit', system-ui, sans-serif;
+}
+
+/* ─── Light Mode (Default Day Mode) ─────────────────────── */
+html.light, :root:not(.dark) {
+  --bg-canvas: #f8fafc;
+  --bg-header: rgba(255, 255, 255, 0.85);
+  --bg-card: #ffffff;
+  --bg-card-subtle: #f1f5f9;
+  --bg-card-hover: #f8fafc;
+  --bg-input: #ffffff;
+  
+  --border-subtle: #e2e8f0;
+  --border-medium: #cbd5e1;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 16px rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08), 0 12px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Dark Mode (Night Mode) ────────────────────────────── */
+html.dark {
+  --bg-canvas: #020617;
+  --bg-header: rgba(0, 21, 48, 0.75);
+  --bg-card: rgba(0, 21, 48, 0.85);
+  --bg-card-subtle: rgba(0, 0, 0, 0.4);
+  --bg-card-hover: rgba(0, 33, 71, 0.6);
+  --bg-input: rgba(0, 0, 0, 0.4);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.15);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.2), 0 4px 16px rgba(0,0,0,0.3);
+  --shadow-card-hover: 0 4px 8px rgba(0,0,0,0.25), 0 12px 32px rgba(0,0,0,0.4);
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-inter);
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-outfit);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-slate-400/40 dark:bg-slate-800 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-500 dark:bg-slate-700; }
+}
+
+@layer utilities {
+  .bg-canvas {
+    background-color: var(--bg-canvas);
+  }
+
+  .bg-card-theme {
+    background-color: var(--bg-card);
+  }
+
+  .bg-card-subtle {
+    background-color: var(--bg-card-subtle);
+  }
+
+  .border-theme {
+    border-color: var(--border-subtle);
+  }
+
+  .text-theme-primary {
+    color: var(--text-primary);
+  }
+
+  .text-theme-secondary {
+    color: var(--text-secondary);
+  }
+
+  .text-theme-muted {
+    color: var(--text-muted);
+  }
+
+  .btn-brand-primary {
+    background-color: var(--brand-primary-dyn);
+    color: #ffffff;
+  }
+
+  .btn-brand-accent {
+    background-color: var(--brand-accent-dyn);
+    color: #002147;
+  }
+
+  .border-brand-accent {
+    border-color: var(--brand-accent-dyn);
+  }
+
+  .text-brand-accent {
+    color: var(--brand-accent-dyn);
+  }
+
+  .shadow-brand-glow {
+    box-shadow: 0 0 20px rgba(255, 184, 28, 0.25);
+  }
+}

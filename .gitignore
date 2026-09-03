@@ -1,0 +1,45 @@
+﻿# Dependencies
+**/node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+**/.next/
+**/out/
+
+# .NET build output
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE & Editor files
+.vs/
+.vscode/
+
+# Browser profiles and authentication cache
+.nlm-edge-profile/
+
+# Secrets & Local environment
+.env*.local
+
+# Python cache & virtual environments
+**/__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Logs
+logs/
+*.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Large presentation media files
+MY COURSE TEMPLATE/*.pptx
