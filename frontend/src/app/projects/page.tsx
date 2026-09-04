@@ -30,6 +30,7 @@ function ProjectsContent() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>(initialOrgId);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
   // New Project Form State
@@ -64,6 +65,7 @@ function ProjectsContent() {
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [orgList, projList] = await Promise.all([
         fetchOrganizations(),
@@ -76,6 +78,7 @@ function ProjectsContent() {
       }
     } catch (err) {
       console.error(err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load courses.');
     } finally {
       setLoading(false);
     }
@@ -121,6 +124,7 @@ function ProjectsContent() {
       await loadData();
     } catch (err) {
       console.error('Error creating project:', err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to create course.');
     } finally {
       setCreating(false);
     }
@@ -128,8 +132,12 @@ function ProjectsContent() {
 
   const handleDeleteProject = async (id: string, name: string) => {
     if (!confirm(`Delete project "${name}"? This cannot be undone.`)) return;
-    await deleteProject(id);
-    loadData();
+    try {
+      await deleteProject(id);
+      await loadData();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to delete course.');
+    }
   };
 
   const handleEditProject = (proj: CourseProject) => {
@@ -147,23 +155,33 @@ function ProjectsContent() {
 
   const handleSaveEdit = async () => {
     if (!editingProject) return;
-    await updateProject(editingProject.id, {
-      name: editName,
-      slug: editSlug,
-      course_code: editCourseCode.trim() || undefined,
-      credit_hours: editCreditHours,
-      prerequisites: editPrerequisites.trim() || undefined,
-      academic_term: editAcademicTerm.trim() || undefined,
-      target_age_band: editAgeBand,
-      total_sessions: editTotalSessions,
-      sessions_per_level: editTotalSessions,
-    });
-    setEditingProject(null);
-    loadData();
+    try {
+      await updateProject(editingProject.id, {
+        name: editName,
+        slug: editSlug,
+        course_code: editCourseCode.trim() || undefined,
+        credit_hours: editCreditHours,
+        prerequisites: editPrerequisites.trim() || undefined,
+        academic_term: editAcademicTerm.trim() || undefined,
+        target_age_band: editAgeBand,
+        total_sessions: editTotalSessions,
+        sessions_per_level: editTotalSessions,
+      });
+      setEditingProject(null);
+      await loadData();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to save course.');
+    }
   };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {loadError && (
+        <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-2xl p-4 text-sm text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3">
+          <span>Couldn't load courses: {loadError}</span>
+          <button onClick={loadData} className="font-display font-bold underline shrink-0">Retry</button>
+        </div>
+      )}
       {/* 1. Chronological Lifecycle Workflow Progress Bar */}
       <WorkflowProgressBar
         currentStep="PROJECTS"

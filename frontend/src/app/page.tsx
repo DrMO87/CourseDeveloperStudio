@@ -52,13 +52,13 @@ import {
   Languages,
   Globe
 } from 'lucide-react';
-import { 
-  fetchOrganizations, 
-  fetchProjects, 
-  fetchSessions, 
-  fetchAgentLogs, 
+import {
+  fetchOrganizations,
+  fetchProjects,
+  fetchSessions,
+  fetchAgentLogs,
   fetchQualityReceipts,
-  upsertQualityReceipt,
+  runQualityGates,
   fetchDossierFiles,
   insertAgentLog,
   updateSessionStage,
@@ -98,6 +98,7 @@ function DashboardContent() {
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
   const [receipt, setReceipt] = useState<QualityReceipt | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showSlideDeckModal, setShowSlideDeckModal] = useState(false);
   const [showObsidianGraphModal, setShowObsidianGraphModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -107,6 +108,7 @@ function DashboardContent() {
   // Initial Load from Supabase & Synchronized Store
   const loadStudioData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const orgs = await fetchOrganizations();
       const safeOrgs = Array.isArray(orgs) ? orgs : [];
@@ -137,6 +139,7 @@ function DashboardContent() {
       }
     } catch (err) {
       console.error('Failed to load studio data:', err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load Studio data.');
     } finally {
       setLoading(false);
     }
@@ -153,49 +156,17 @@ function DashboardContent() {
       return;
     }
 
-    const storedCompleted = typeof window !== 'undefined' ? localStorage.getItem(`cds_session_completed_stages_${sess.id}`) : null;
-    let loadedCompletedStages: PipelineStage[] = [];
-    if (storedCompleted) {
-      try {
-        const parsed = JSON.parse(storedCompleted);
-        if (Array.isArray(parsed)) loadedCompletedStages = parsed;
-      } catch {}
-    } else if (sess.completed_stages && Array.isArray(sess.completed_stages)) {
-      loadedCompletedStages = sess.completed_stages;
-    } else if (sess.current_stage === 'ARTIFACTS' && (sess.status === 'approved' || sess.status === 'completed')) {
-      loadedCompletedStages = [...STAGE_ORDER];
-    }
-
-    const cachedStage = typeof window !== 'undefined' ? (localStorage.getItem(`cds_session_stage_${sess.id}`) as PipelineStage) : null;
-    const initialStage = cachedStage || sess.current_stage || (loadedCompletedStages.length === 5 ? 'ARTIFACTS' : STAGE_ORDER[loadedCompletedStages.length] || 'BRAND_SETUP');
-    setCurrentStage(initialStage);
-    setCompletedStages(loadedCompletedStages);
+    setCurrentStage(sess.current_stage);
+    setCompletedStages(sess.completed_stages || []);
 
     const [logs, receipts] = await Promise.all([
       fetchAgentLogs(sess.id),
       fetchQualityReceipts(sess.id)
     ]);
     setAgentLogs(Array.isArray(logs) ? logs : []);
-    if (Array.isArray(receipts) && receipts.length > 0) {
-      setReceipt(receipts[0]);
-    } else if (loadedCompletedStages.length >= 4) {
-      const fallbackReceipt: QualityReceipt = {
-        id: `receipt-${sess.id}`,
-        session_id: sess.id,
-        project_id: sess.project_id,
-        overall_verdict: 'PASS',
-        evaluated_at: new Date().toISOString(),
-        gate_results: [
-          { gate_code: 'language_ratio', verdict: 'PASS', metric_value: 1.0, detail: 'Language Policy Verification - PASS' },
-          { gate_code: 'brand_palette', verdict: 'PASS', metric_value: 1.0, detail: 'Brand Palette 100% Compliant' },
-          { gate_code: 'boundary_check', verdict: 'PASS', metric_value: 1.0, detail: 'Zero lecturer notes Leakage' },
-          { gate_code: 'asset_reconciliation', verdict: 'PASS', metric_value: 1.0, detail: 'SHA-256 Checksums Reconciled' }
-        ]
-      };
-      setReceipt(fallbackReceipt);
-    } else {
-      setReceipt(null);
-    }
+    // STEP 7: no more fabricated all-PASS receipt when none exist yet — an empty result here
+    // means the gates genuinely haven't run for this session, which is real information.
+    setReceipt(Array.isArray(receipts) && receipts.length > 0 ? receipts[0] : null);
   };
 
   useEffect(() => {
@@ -216,19 +187,24 @@ function DashboardContent() {
       localStorage.setItem('cds_active_org_id', org.id);
     }
 
-    const projs = await fetchProjects(orgId || undefined);
-    setProjects(projs);
-    const firstProj = projs.length > 0 ? projs[0] : null;
-    setSelectedProject(firstProj);
+    try {
+      const projs = await fetchProjects(orgId || undefined);
+      setProjects(projs);
+      const firstProj = projs.length > 0 ? projs[0] : null;
+      setSelectedProject(firstProj);
 
-    if (firstProj) {
-      const sessList = await fetchSessions(firstProj.id);
-      setSessions(sessList);
-      const firstSess = sessList.length > 0 ? sessList[0] : null;
-      await applySessionState(firstSess);
-    } else {
-      setSessions([]);
-      await applySessionState(null);
+      if (firstProj) {
+        const sessList = await fetchSessions(firstProj.id);
+        setSessions(sessList);
+        const firstSess = sessList.length > 0 ? sessList[0] : null;
+        await applySessionState(firstSess);
+      } else {
+        setSessions([]);
+        await applySessionState(null);
+      }
+    } catch (err) {
+      console.error('Failed to switch organization:', err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load this organization\'s data.');
     }
   };
 
@@ -237,12 +213,17 @@ function DashboardContent() {
     const proj = projects.find(p => p.id === projId) || null;
     setSelectedProject(proj);
     if (proj) {
-      const sessList = await fetchSessions(proj.id);
-      setSessions(sessList);
-      const dFiles = await fetchDossierFiles(proj.id);
-      setDossierFiles(Array.isArray(dFiles) ? dFiles : []);
-      const firstSess = sessList.length > 0 ? sessList[0] : null;
-      await applySessionState(firstSess);
+      try {
+        const sessList = await fetchSessions(proj.id);
+        setSessions(sessList);
+        const dFiles = await fetchDossierFiles(proj.id);
+        setDossierFiles(Array.isArray(dFiles) ? dFiles : []);
+        const firstSess = sessList.length > 0 ? sessList[0] : null;
+        await applySessionState(firstSess);
+      } catch (err) {
+        console.error('Failed to switch project:', err);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load this course\'s sessions.');
+      }
     }
   };
 
@@ -255,10 +236,15 @@ function DashboardContent() {
   const handleDeleteSession = async () => {
     if (!selectedSession || !selectedProject) return;
     if (!confirm(`Delete session "${selectedSession.session_code} - ${selectedSession.title}"?`)) return;
-    await deleteSession(selectedSession.id, selectedProject.id);
-    const updated = await fetchSessions(selectedProject.id);
-    setSessions(updated);
-    setSelectedSession(updated[0] || null);
+    try {
+      await deleteSession(selectedSession.id);
+      const updated = await fetchSessions(selectedProject.id);
+      setSessions(updated);
+      setSelectedSession(updated[0] || null);
+    } catch (e: any) {
+      setToastMessage(`⚠️ Failed to delete session: ${e.message || 'Unknown error'}`);
+      setTimeout(() => setToastMessage(null), 5000);
+    }
   };
 
   const handleEditSession = () => {
@@ -300,48 +286,59 @@ function DashboardContent() {
   const handleCreateNewSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject || !newSessionCode.trim()) return;
-    const created = await createSession({
-      project_id: selectedProject.id,
-      session_code: newSessionCode.trim(),
-      title: newSessionTitle.trim() || `Lecture ${sessions.length + 1}`,
-      duration_minutes: newSessionDuration,
-      level: 1,
-      session_number: sessions.length + 1,
-    });
-    setShowAddSessionModal(false);
-    setNewSessionCode('');
-    setNewSessionTitle('');
-    const updated = await fetchSessions(selectedProject.id);
-    setSessions(updated);
-    setSelectedSession(created);
+    try {
+      const created = await createSession({
+        project_id: selectedProject.id,
+        session_code: newSessionCode.trim(),
+        title: newSessionTitle.trim() || `Lecture ${sessions.length + 1}`,
+        duration_minutes: newSessionDuration,
+        level: 1,
+        session_number: sessions.length + 1,
+      });
+      setShowAddSessionModal(false);
+      setNewSessionCode('');
+      setNewSessionTitle('');
+      const updated = await fetchSessions(selectedProject.id);
+      setSessions(updated);
+      setSelectedSession(created);
+    } catch (e: any) {
+      setToastMessage(`⚠️ Failed to create session: ${e.message || 'Unknown error'}`);
+      setTimeout(() => setToastMessage(null), 5000);
+    }
   };
 
   const handleSaveSessionEdit = async () => {
     if (!editingSession || !selectedProject) return;
-    await updateSession(editingSession.id, selectedProject.id, {
-      title: editSessionTitle,
-      session_code: editSessionCode,
-      duration_minutes: editSessionDuration,
-    });
-    setEditingSession(null);
-    const updated = await fetchSessions(selectedProject.id);
-    setSessions(updated);
-    const refreshed = updated.find(s => s.id === editingSession.id);
-    if (refreshed) setSelectedSession(refreshed);
+    try {
+      await updateSession(editingSession.id, {
+        title: editSessionTitle,
+        session_code: editSessionCode,
+        duration_minutes: editSessionDuration,
+      });
+      setEditingSession(null);
+      const updated = await fetchSessions(selectedProject.id);
+      setSessions(updated);
+      const refreshed = updated.find(s => s.id === editingSession.id);
+      if (refreshed) setSelectedSession(refreshed);
+    } catch (e: any) {
+      setToastMessage(`⚠️ Failed to save session: ${e.message || 'Unknown error'}`);
+      setTimeout(() => setToastMessage(null), 5000);
+    }
   };
 
-  const handleResetPipeline = () => {
+  const handleResetPipeline = async () => {
     if (selectedSession && selectedProject && typeof window !== 'undefined') {
       localStorage.removeItem(`cds_session_stage_${selectedSession.id}`);
       localStorage.removeItem(`cds_session_completed_stages_${selectedSession.id}`);
       localStorage.removeItem(`cds_receipts_${selectedSession.id}`);
-      updateSessionCompletedStages(selectedSession.id, selectedProject.id, [], 'BRAND_SETUP');
-      setSessions(prev => prev.map(s => s.id === selectedSession.id ? {
-        ...s,
-        current_stage: 'BRAND_SETUP',
-        completed_stages: [],
-        status: 'draft'
-      } : s));
+      try {
+        const updated = await updateSessionCompletedStages(selectedSession.id, 'BRAND_SETUP');
+        setSessions(prev => prev.map(s => s.id === selectedSession.id ? updated : s));
+      } catch (error) {
+        setToastMessage(error instanceof Error ? error.message : 'Failed to reset the pipeline.');
+        setTimeout(() => setToastMessage(null), 5000);
+        return;
+      }
     }
     setCurrentStage('BRAND_SETUP');
     setCompletedStages([]);
@@ -430,41 +427,56 @@ function DashboardContent() {
     // Update state immediately so UI updates in real-time
     const newCompleted = Array.from(new Set([...completedStages, stage]));
     setAgentLogs((prev) => [newLog2, newLog1, ...prev]);
-    setCompletedStages(newCompleted);
 
     let nextStage = stage;
     if (stageIdx < STAGE_ORDER.length - 1) {
       nextStage = STAGE_ORDER[stageIdx + 1];
-      setCurrentStage(nextStage);
     }
 
     // Immediately persist completed stages & update session state
     if (selectedSession && selectedProject) {
-      updateSessionCompletedStages(selectedSession.id, selectedProject.id, newCompleted, nextStage);
-      setSessions(prev => prev.map(s => s.id === selectedSession.id ? {
-        ...s,
-        current_stage: nextStage,
-        completed_stages: newCompleted,
-        status: newCompleted.length === 5 ? 'approved' : 'draft'
-      } : s));
+      const sessionStatus = newCompleted.length === STAGE_ORDER.length ? 'approved' : 'draft';
+      try {
+        const updated = await updateSessionCompletedStages(selectedSession.id, nextStage, sessionStatus);
+        setSessions(prev => prev.map(s => s.id === selectedSession.id ? updated : s));
+        setSelectedSession(updated);
+        setCurrentStage(updated.current_stage);
+        setCompletedStages(updated.completed_stages || []);
+      } catch (error) {
+        setToastMessage(error instanceof Error ? error.message : 'Failed to save pipeline progress.');
+        setTimeout(() => setToastMessage(null), 5000);
+        setIsRunning(false);
+        return;
+      }
     }
 
-    // Auto-generate or upsert QualityReceipt if stage is BUNDLE or ARTIFACTS or completed >= 4
-    if (selectedSession && (stage === 'BUNDLE' || stage === 'ARTIFACTS' || newCompleted.length >= 4)) {
-      const autoReceipt: Partial<QualityReceipt> = {
-        session_id: selectedSession.id,
-        project_id: selectedProject?.id,
-        overall_verdict: 'PASS',
-        gate_results: [
-          { gate_code: 'language_ratio', verdict: 'PASS', metric_value: 1.0, detail: isEnglishOnly ? '100% English Faculty Standard - Zero Arabic Detected (PASS)' : isArabicOnly ? '100% Arabic Standard (PASS)' : `Bilingual Balance ${targetRatio}% (PASS)` },
-          { gate_code: 'brand_palette', verdict: 'PASS', metric_value: 1.0, detail: `Approved Palette [${orgPalette}] 100% Compliant (PASS)` },
-          { gate_code: 'boundary_check', verdict: 'PASS', metric_value: 1.0, detail: 'Zero lecturer notes Leakage in Student Slides (PASS)' },
-          { gate_code: 'asset_reconciliation', verdict: 'PASS', metric_value: 1.0, detail: 'SHA-256 Checksums Reconciled & Staged (PASS)' }
-        ]
-      };
-      upsertQualityReceipt(autoReceipt).then(r => {
-        if (r) setReceipt(r);
-      });
+    // STEP 7: run the real registered quality gates (against whatever real markdown content
+    // this session has so far) instead of fabricating an all-PASS receipt. The gates persist
+    // their own receipt server-side; refetch it so the UI reflects the actual verdicts.
+    if (selectedSession && selectedOrg && selectedProject && (stage === 'BUNDLE' || stage === 'ARTIFACTS' || newCompleted.length >= 4)) {
+      const learnerText = [
+        selectedSession.blueprint_markdown,
+        selectedSession.slides_source_markdown,
+        selectedSession.home_summary_markdown,
+        selectedSession.decisions_markdown
+      ].filter(Boolean).join('\n\n');
+
+      try {
+        await runQualityGates({
+          organization_id: selectedOrg.id,
+          project_id: selectedProject.id,
+          session_id: selectedSession.id,
+          stage,
+          learner_text: learnerText
+        });
+        const receipts = await fetchQualityReceipts(selectedSession.id);
+        if (receipts.length > 0) setReceipt(receipts[0]);
+      } catch (error) {
+        setToastMessage(error instanceof Error ? error.message : 'Quality gate evaluation failed.');
+        setTimeout(() => setToastMessage(null), 5000);
+        setIsRunning(false);
+        return;
+      }
     }
 
     // 2. Perform async LLM call and Supabase log persistence
@@ -549,6 +561,12 @@ function DashboardContent() {
 
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-6">
+      {loadError && (
+        <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-2xl p-4 text-sm text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3">
+          <span>Couldn't load Studio data: {loadError}</span>
+          <button onClick={loadStudioData} className="font-display font-bold underline shrink-0">Retry</button>
+        </div>
+      )}
       {/* 0. Chronological Lifecycle Workflow Progress Bar */}
       <WorkflowProgressBar
         currentStep="STUDIO"

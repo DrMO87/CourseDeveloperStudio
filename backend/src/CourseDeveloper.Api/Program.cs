@@ -11,7 +11,21 @@ using Npgsql;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services
-builder.Services.AddControllers();
+// STEP 7: the frontend's existing types (Organization, CourseSession, etc.) use the
+// snake_case field names Supabase's Postgres-column-derived REST API always used —
+// matching the API's JSON to that convention means zero changes to the frontend's
+// existing type definitions instead of a parallel camelCase-to-snake_case mapping layer.
+// Every enum here (PipelineStage, GateVerdict, ApprovalKind, InstitutionType) already has
+// members spelled exactly as the frontend/Postgres expect them (STEP 7 renamed
+// InstitutionType to match) — the default JsonStringEnumConverter (no naming policy of its
+// own) serializes/parses the literal member name, so "BRAND_SETUP" and "academy" both
+// round-trip correctly without a second, conflicting naming policy for enum values.
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -54,6 +68,7 @@ builder.Services.AddScoped<IProjectRepository, NpgsqlProjectRepository>();
 builder.Services.AddScoped<ISessionRepository, NpgsqlSessionRepository>();
 builder.Services.AddScoped<IGateDefinitionRepository, NpgsqlGateDefinitionRepository>();
 builder.Services.AddScoped<IDossierRepository, NpgsqlDossierRepository>();
+builder.Services.AddScoped<IQualityReceiptRepository, NpgsqlQualityReceiptRepository>();
 
 // CORS — explicit origin allow-list only, never AllowAnyOrigin (decision 5)
 var corsAllowedOrigins = (Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")

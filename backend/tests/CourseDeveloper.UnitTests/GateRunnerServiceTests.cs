@@ -1,5 +1,7 @@
 namespace CourseDeveloper.UnitTests;
 
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using CourseDeveloper.Core.Enums;
 using CourseDeveloper.Core.Interfaces;
 using CourseDeveloper.Core.Models;
@@ -8,6 +10,28 @@ using Xunit;
 
 public class GateRunnerServiceTests
 {
+    [Fact]
+    public void ApiJsonPolicyPreservesLiteralEnumNamesAndUsesSnakeCaseProperties()
+    {
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+        };
+        options.Converters.Add(new JsonStringEnumConverter());
+
+        var json = JsonSerializer.Serialize(new
+        {
+            PipelineStage = PipelineStage.BRAND_SETUP,
+            GateVerdict = GateVerdict.UNVERIFIED,
+            ApprovalKind = ApprovalKind.physical_action_required,
+            InstitutionType = InstitutionType.training_center
+        }, options);
+
+        Assert.Equal(
+            "{\"pipeline_stage\":\"BRAND_SETUP\",\"gate_verdict\":\"UNVERIFIED\",\"approval_kind\":\"physical_action_required\",\"institution_type\":\"training_center\"}",
+            json);
+    }
+
     [Fact]
     public async Task EnabledGatesPopulateReceiptWithMatchingReceiptIdsAndPolicyMetadata()
     {
@@ -128,6 +152,7 @@ public class GateRunnerServiceTests
         return new GateRunnerService(
             new FakeGateDefinitionRepository(definitions),
             new FakeOrganizationRepository(organization),
+            new FakeQualityReceiptRepository(),
             gates);
     }
 
@@ -210,5 +235,11 @@ public class GateRunnerServiceTests
         public Task<Organization> CreateAsync(Organization organization) => throw new NotSupportedException();
         public Task<Organization> UpdateAsync(Organization organization) => throw new NotSupportedException();
         public Task DeleteAsync(Guid id) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeQualityReceiptRepository : IQualityReceiptRepository
+    {
+        public Task<QualityReceipt> CreateAsync(QualityReceipt receipt) => Task.FromResult(receipt);
+        public Task<List<QualityReceipt>> GetBySessionAsync(Guid sessionId) => throw new NotSupportedException();
     }
 }

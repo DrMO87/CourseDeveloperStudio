@@ -48,6 +48,11 @@ create table if not exists public.course_projects (
     organization_id uuid references public.organizations(id) on delete cascade,
     slug text unique not null,
     name text not null,
+    course_code text,          -- STEP 7: frontend's Create/Edit Course forms already collect these
+    credit_hours int,          -- five fields; they had no backend column at all, so real
+    prerequisites text,        -- create/update calls to the .NET API were silently dropping them.
+    academic_term text,
+    total_sessions int,
     target_age_band text,
     levels int[] not null default '{}',
     sessions_per_level int not null default 1,
@@ -305,6 +310,14 @@ create table if not exists public.generation_job (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+-- `create table if not exists` does not add columns to an existing deployment.
+alter table public.course_projects
+    add column if not exists course_code text,
+    add column if not exists credit_hours int,
+    add column if not exists prerequisites text,
+    add column if not exists academic_term text,
+    add column if not exists total_sessions int;
 
 -- One worker may own a (course, session, operation) idempotency key at a time (STEP 4
 -- constraint): only one non-terminal job per key may exist. A partial unique index (not a

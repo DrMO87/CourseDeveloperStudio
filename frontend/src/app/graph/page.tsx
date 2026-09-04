@@ -22,11 +22,13 @@ function GraphPageContent() {
   const [sessions, setSessions] = useState<CourseSession[]>([]);
   const [dossierFiles, setDossierFiles] = useState<ProjectDossierFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [previewingNote, setPreviewingNote] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
+      setLoadError(null);
       try {
         const orgs = await fetchOrganizations();
         const safeOrgs = Array.isArray(orgs) ? orgs : [];
@@ -52,6 +54,7 @@ function GraphPageContent() {
         }
       } catch (err) {
         console.error('Error loading graph workspace data:', err);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load graph data.');
       } finally {
         setLoading(false);
       }
@@ -98,6 +101,11 @@ function GraphPageContent() {
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#070d18] text-white">
+      {loadError && (
+        <div className="bg-rose-500/10 border-b border-rose-500/30 px-6 py-3 text-sm text-rose-300">
+          Couldn't load graph data: {loadError}
+        </div>
+      )}
       {/* Top Navigation Bar */}
       <div className="border-b border-white/10 bg-[#001530]/80 backdrop-blur-md px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">

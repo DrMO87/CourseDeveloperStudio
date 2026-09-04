@@ -25,11 +25,11 @@ import {
 } from 'lucide-react';
 import type { Organization, InstitutionType } from '@/lib/types';
 import { useTheme } from '@/components/ThemeProvider';
-import { 
-  fetchOrganizations, 
-  createOrganization, 
+import {
+  fetchOrganizations,
+  createOrganization,
   deleteOrganization,
-  DEFAULT_INSTITUTION_TEMPLATES 
+  DEFAULT_INSTITUTION_TEMPLATES
 } from '@/lib/supabase';
 
 const INSTITUTION_CONFIG: Record<InstitutionType, { label: string; icon: any; color: string; badge: string; subtitle: string }> = {
@@ -74,6 +74,7 @@ export default function OrganizationsPage() {
   const { setActiveOrg } = useTheme();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
   // New Org Form State
@@ -85,12 +86,13 @@ export default function OrganizationsPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const orgs = await fetchOrganizations();
       setOrganizations(orgs);
     } catch (err) {
       console.error(err);
-      setOrganizations(DEFAULT_INSTITUTION_TEMPLATES);
+      setLoadError(err instanceof Error ? err.message : 'Failed to load institutions.');
     } finally {
       setLoading(false);
     }
@@ -108,17 +110,20 @@ export default function OrganizationsPage() {
     const customName = `${template.name} (Custom Copy)`;
     const customSlug = `${template.slug}-${Date.now().toString().slice(-4)}`;
 
-    const created = await createOrganization({
-      ...template,
-      id: `org-${Date.now()}`,
-      name: customName,
-      slug: customSlug
-    });
-    setActiveOrg(created);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cds_active_org_id', created.id);
+    try {
+      const created = await createOrganization({
+        ...template,
+        name: customName,
+        slug: customSlug
+      });
+      setActiveOrg(created);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cds_active_org_id', created.id);
+      }
+      await loadData();
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to create institution from template.');
     }
-    await loadData();
   };
 
   const handleSelectActiveOrg = (org: Organization) => {
@@ -131,8 +136,12 @@ export default function OrganizationsPage() {
 
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`Are you sure you want to remove "${name}"?`)) {
-      await deleteOrganization(id);
-      await loadData();
+      try {
+        await deleteOrganization(id);
+        await loadData();
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Failed to delete institution.');
+      }
     }
   };
 
@@ -209,6 +218,7 @@ export default function OrganizationsPage() {
       await loadData();
     } catch (err) {
       console.error('Error creating organization:', err);
+      setLoadError(err instanceof Error ? err.message : 'Failed to create institution.');
     } finally {
       setCreating(false);
     }
@@ -227,6 +237,12 @@ export default function OrganizationsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10">
+      {loadError && (
+        <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-2xl p-4 text-sm text-rose-700 dark:text-rose-300 flex items-center justify-between gap-3">
+          <span>Couldn't load institutions: {loadError}</span>
+          <button onClick={loadData} className="font-display font-bold underline shrink-0">Retry</button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-white/10 pb-6">
         <div>

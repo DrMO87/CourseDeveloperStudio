@@ -23,10 +23,19 @@ public class RunGatesRequest
 public class QualityGatesController : ControllerBase
 {
     private readonly IQualityGateRunner _gateRunner;
+    private readonly IQualityReceiptRepository _receiptRepo;
 
-    public QualityGatesController(IQualityGateRunner gateRunner)
+    public QualityGatesController(IQualityGateRunner gateRunner, IQualityReceiptRepository receiptRepo)
     {
         _gateRunner = gateRunner;
+        _receiptRepo = receiptRepo;
+    }
+
+    [HttpGet("session/{sessionId:guid}")]
+    public async Task<ActionResult<List<QualityReceipt>>> GetReceiptsForSession(Guid sessionId)
+    {
+        var receipts = await _receiptRepo.GetBySessionAsync(sessionId);
+        return Ok(receipts);
     }
 
     [HttpPost("evaluate")]

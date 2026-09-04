@@ -100,7 +100,7 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
                 language_policy, mascot_config, boundary_terms, quality_guidelines,
                 asset_citation_pattern, evidence_marker_pattern, created_at, updated_at
             ) VALUES (
-                @id, @slug, @name, @institution_type::text, @logo_url, @brand_palette::jsonb,
+                @id, @slug, @name, @institution_type::institution_type, @logo_url, @brand_palette::jsonb,
                 @language_policy::jsonb, @mascot_config::jsonb, @boundary_terms::jsonb, @quality_guidelines::jsonb,
                 @asset_citation_pattern, @evidence_marker_pattern, @created_at, @updated_at
             ) RETURNING *");
@@ -141,7 +141,7 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
         using var cmd = conn.CreateCommand(@"
             UPDATE organizations SET
                 name = @name,
-                institution_type = @institution_type::text,
+                institution_type = @institution_type::institution_type,
                 logo_url = @logo_url,
                 brand_palette = @brand_palette::jsonb,
                 language_policy = @language_policy::jsonb,

@@ -57,6 +57,7 @@ export function LanguagePolicyModal({
       onClose();
     } catch (err) {
       console.error(err);
+      alert(err instanceof Error ? err.message : 'Failed to save language policy.');
     } finally {
       setSaving(false);
     }

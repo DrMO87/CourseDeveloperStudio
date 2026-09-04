@@ -13,16 +13,19 @@ public class GateRunnerService : IQualityGateRunner
 {
     private readonly IGateDefinitionRepository _gateRepo;
     private readonly IOrganizationRepository _orgRepo;
+    private readonly IQualityReceiptRepository _receiptRepo;
 
     private readonly Dictionary<string, IQualityGate> _registry;
 
     public GateRunnerService(
         IGateDefinitionRepository gateRepo,
         IOrganizationRepository orgRepo,
+        IQualityReceiptRepository receiptRepo,
         IEnumerable<IQualityGate> gates)
     {
         _gateRepo = gateRepo;
         _orgRepo = orgRepo;
+        _receiptRepo = receiptRepo;
         _registry = gates.ToDictionary(g => g.Code, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -79,7 +82,11 @@ public class GateRunnerService : IQualityGateRunner
 
         receipt.DetailedReceipt = detailed;
 
-        return receipt;
+        // STEP 7: this receipt used to be discarded after the HTTP response — nothing ever
+        // called NpgsqlQualityReceiptRepository.CreateAsync, so a session's quality history
+        // couldn't survive a page refresh. Persisting here is what lets the frontend fetch a
+        // session's real past receipts instead of re-deriving fake ones client-side.
+        return await _receiptRepo.CreateAsync(receipt);
     }
 
     private static void AddPolicyMetadata(GateResult gateResult, Dictionary<string, object> config)

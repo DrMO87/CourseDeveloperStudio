@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
-import type { 
-  Organization, 
-  CourseProject, 
-  CourseSession, 
-  AgentLog, 
-  QualityReceipt, 
+import type {
+  Organization,
+  CourseProject,
+  CourseSession,
+  AgentLog,
+  QualityReceipt,
   QualityGateDefinition,
   QualityGateResult,
   PipelineStage,
@@ -12,10 +12,15 @@ import type {
   DossierFileCategory,
   InstitutionType
 } from './types';
+import { api } from './apiClient';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://gjxhfyfonjdcaimxjipp.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-key';
 
+// STEP 7: kept only for authentication (apiClient.ts reads its session token) and for
+// DEFAULT_INSTITUTION_TEMPLATES, an editable starting point offered in the "create
+// organization" UI — not a read-time fallback. Organizations/projects/sessions/gates no
+// longer read or write through this client; see apiClient.ts for the real data path.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ── Built-in Archetype Templates ──
@@ -110,50 +115,20 @@ function setLocal<T>(key: string, val: T, triggerEvent: boolean = false): void {
 // ── Organizations & Settings ──
 
 export async function fetchOrganizations(): Promise<Organization[]> {
-  try {
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && Array.isArray(data) && data.length > 0) {
-      // Merge remote with local templates/custom items
-      const local = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-      const safeLocal = Array.isArray(local) ? local : DEFAULT_INSTITUTION_TEMPLATES;
-      const remoteIds = new Set(data.map(d => d.id));
-      const combined = [...data, ...safeLocal.filter(l => l && !remoteIds.has(l.id))];
-      setLocal('cds_organizations', combined);
-      return combined;
-    }
-  } catch {
-    // Fall back to local storage
-  }
-
-  const localOrgs = getLocal<Organization[] | null>('cds_organizations', null);
-  if (localOrgs !== null && Array.isArray(localOrgs)) {
-    return localOrgs;
-  }
-  return DEFAULT_INSTITUTION_TEMPLATES;
+  return api.get<Organization[]>('/api/Organizations');
 }
 
 export async function fetchOrganizationById(id: string): Promise<Organization | null> {
   try {
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('id', id)
-      .single();
-    if (!error && data) return data;
-  } catch {}
-
-  const localOrgs = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-  const safeLocal = Array.isArray(localOrgs) ? localOrgs : DEFAULT_INSTITUTION_TEMPLATES;
-  return safeLocal.find(o => o && o.id === id) || DEFAULT_INSTITUTION_TEMPLATES.find(o => o.id === id) || null;
+    return await api.get<Organization>(`/api/Organizations/${id}`);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('(404)')) return null;
+    throw err;
+  }
 }
 
 export async function createOrganization(org: Partial<Organization>): Promise<Organization> {
-  const newOrg: Organization = {
-    id: org.id || `org-${Date.now()}`,
+  const payload = {
     name: org.name || 'New Institution',
     slug: org.slug || `org-${Date.now()}`,
     institution_type: (org.institution_type as InstitutionType) || 'university',
@@ -164,436 +139,97 @@ export async function createOrganization(org: Partial<Organization>): Promise<Or
     mascot_config: org.mascot_config || { character_name: null, poses: [] },
     quality_guidelines: org.quality_guidelines || { authority_name: '', core_guidelines: '', reference_url: '' },
     asset_citation_pattern: org.asset_citation_pattern || '\\*\\*Asset:\\*\\*\\s*`([^`]+)`',
-    evidence_marker_pattern: org.evidence_marker_pattern || '\\[Reserved Image Area:\\s*([^\\]]+?)\\s*\\]',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    evidence_marker_pattern: org.evidence_marker_pattern || '\\[Reserved Image Area:\\s*([^\\]]+?)\\s*\\]'
   };
-
-  // 1. Save to Local Cache Immediately
-  const localOrgs = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-  const updated = [newOrg, ...localOrgs.filter(o => o.id !== newOrg.id)];
-  setLocal('cds_organizations', updated);
-
-  // 2. Try Supabase Insert in background
-  try {
-    await supabase.from('organizations').insert([newOrg]);
-  } catch (e) {
-    console.info('Saved organization locally (Supabase offline).');
-  }
-
-  return newOrg;
+  return api.post<Organization>('/api/Organizations', payload);
 }
 
-export async function updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization | null> {
-  const localOrgs = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-  const existing = localOrgs.find(o => o.id === id);
-  if (!existing) return null;
-
-  const merged: Organization = {
-    ...existing,
-    ...updates,
-    updated_at: new Date().toISOString()
-  };
-
-  const updatedList = localOrgs.map(o => o.id === id ? merged : o);
-  setLocal('cds_organizations', updatedList);
-
-  try {
-    await supabase.from('organizations').update(updates).eq('id', id);
-  } catch {}
-
-  return merged;
+export async function updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization> {
+  const existing = await api.get<Organization>(`/api/Organizations/${id}`);
+  const merged: Organization = { ...existing, ...updates, id: existing.id };
+  return api.put<Organization>(`/api/Organizations/${id}`, merged);
 }
 
-export async function deleteOrganization(id: string): Promise<boolean> {
-  const localOrgs = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-  setLocal('cds_organizations', localOrgs.filter(o => o.id !== id));
-
-  try {
-    await supabase.from('organizations').delete().eq('id', id);
-  } catch {}
-
-  return true;
+export async function deleteOrganization(id: string): Promise<void> {
+  await api.delete(`/api/Organizations/${id}`);
 }
 
 // ── Quality Gate Definitions ──
 
 export async function fetchGateDefinitions(organizationId: string): Promise<QualityGateDefinition[]> {
-  const defaults: QualityGateDefinition[] = [
-    { id: `gate-1-${organizationId}`, organization_id: organizationId, gate_code: 'language_ratio', display_name: 'Language Ratio & Script Balance', is_enabled: true, sort_order: 1, gate_config: {} },
-    { id: `gate-2-${organizationId}`, organization_id: organizationId, gate_code: 'brand_palette', display_name: 'Brand Color Palette Compliance', is_enabled: true, sort_order: 2, gate_config: {} },
-    { id: `gate-3-${organizationId}`, organization_id: organizationId, gate_code: 'boundary_check', display_name: 'Lecturer Boundary Isolation', is_enabled: true, sort_order: 3, gate_config: {} },
-    { id: `gate-4-${organizationId}`, organization_id: organizationId, gate_code: 'asset_reconciliation', display_name: 'Disk Asset Reconciliation & Checksum', is_enabled: true, sort_order: 4, gate_config: {} }
-  ];
-
-  try {
-    const { data, error } = await supabase
-      .from('quality_gate_definitions')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('sort_order', { ascending: true });
-    if (!error && Array.isArray(data) && data.length > 0) return data;
-  } catch {}
-
-  const local = getLocal<QualityGateDefinition[]>(`cds_gates_${organizationId}`, defaults);
-  return Array.isArray(local) && local.length > 0 ? local : defaults;
+  return api.get<QualityGateDefinition[]>(`/api/Organizations/${organizationId}/gate-definitions`);
 }
 
-export async function upsertGateDefinition(def: Partial<QualityGateDefinition>): Promise<QualityGateDefinition | null> {
-  if (!def.organization_id) return null;
-  const current = await fetchGateDefinitions(def.organization_id);
-  const updated = current.map(g => g.gate_code === def.gate_code ? { ...g, ...def } : g);
-  setLocal(`cds_gates_${def.organization_id}`, updated);
-
-  try {
-    await supabase.from('quality_gate_definitions').upsert([def]);
-  } catch {}
-
-  return def as QualityGateDefinition;
+export async function upsertGateDefinition(def: Partial<QualityGateDefinition>): Promise<QualityGateDefinition> {
+  if (!def.organization_id) throw new Error('upsertGateDefinition requires organization_id.');
+  return api.post<QualityGateDefinition>(`/api/Organizations/${def.organization_id}/gate-definitions`, def);
 }
 
-export async function toggleGateDefinition(id: string, is_enabled: boolean): Promise<boolean> {
-  return true;
+export async function toggleGateDefinition(organizationId: string, gateCode: string, isEnabled: boolean): Promise<void> {
+  await api.patch(`/api/Organizations/${organizationId}/gate-definitions/${gateCode}/toggle?isEnabled=${isEnabled}`);
 }
 
 // ── Course Projects & Sessions ──
 
 export async function fetchProjects(organizationId?: string): Promise<CourseProject[]> {
-  const defaultProjects: CourseProject[] = [
-    {
-      id: 'proj-1',
-      organization_id: 'org-template-hue',
-      name: 'Instrumental Analysis (Pharmaceutical)',
-      slug: 'instrumental-analysis-pharmaceutical',
-      course_code: 'PHAR-301',
-      credit_hours: 3,
-      prerequisites: 'Organic Chemistry II, Analytical Chemistry',
-      academic_term: 'Semester 5 (Undergraduate)',
-      target_age_band: 'Undergraduate (18+)',
-      total_sessions: 12,
-      obsidian_vault_project_path: '01_Projects/instrumental-analysis-pharmaceutical',
-      created_at: '2026-01-01T00:00:00.000Z'
-    },
-    {
-      id: 'proj-2',
-      organization_id: 'org-template-technosquare',
-      name: 'Robotics & Embedded Systems L1',
-      slug: 'robotics-embedded-l1',
-      course_code: 'STEM-EV3',
-      credit_hours: 0,
-      prerequisites: 'Intro to Scratch / Basic Logic',
-      academic_term: 'Junior STEM Track',
-      target_age_band: '11-13',
-      levels: [1, 2],
-      sessions_per_level: 8,
-      total_sessions: 16,
-      obsidian_vault_project_path: '01_Projects/robotics-embedded-l1',
-      created_at: '2026-01-02T00:00:00.000Z'
-    }
-  ];
-
-  try {
-    let query = supabase.from('course_projects').select('*');
-    if (organizationId) query = query.eq('organization_id', organizationId);
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (!error && Array.isArray(data) && data.length > 0) return data;
-  } catch {}
-
-  const local = getLocal<CourseProject[] | null>('cds_projects', null);
-  if (local !== null && Array.isArray(local)) {
-    return organizationId ? local.filter((p: CourseProject) => p.organization_id === organizationId) : local;
-  }
-  return organizationId ? defaultProjects.filter(p => p.organization_id === organizationId) : defaultProjects;
+  const query = organizationId ? `?organizationId=${organizationId}` : '';
+  return api.get<CourseProject[]>(`/api/Projects${query}`);
 }
 
 export async function fetchProjectById(id: string): Promise<CourseProject | null> {
-  const all = await fetchProjects();
-  return all.find(p => p.id === id) || null;
+  try {
+    return await api.get<CourseProject>(`/api/Projects/${id}`);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('(404)')) return null;
+    throw err;
+  }
 }
 
 export async function createProject(project: Partial<CourseProject>): Promise<CourseProject> {
-  const newProj: CourseProject = {
-    id: project.id || `proj-${Date.now()}`,
+  const payload = {
     organization_id: project.organization_id || null,
     name: project.name || 'New Curriculum Course',
     slug: project.slug || `course-${Date.now()}`,
-    course_code: project.course_code || '',
-    credit_hours: project.credit_hours !== undefined ? project.credit_hours : 3,
-    prerequisites: project.prerequisites || '',
-    academic_term: project.academic_term || '',
+    course_code: project.course_code || null,
+    credit_hours: project.credit_hours ?? null,
+    prerequisites: project.prerequisites || null,
+    academic_term: project.academic_term || null,
     target_age_band: project.target_age_band || 'Undergraduate',
-    levels: project.levels,
-    sessions_per_level: project.sessions_per_level,
-    total_sessions: project.total_sessions || 10,
-    obsidian_vault_project_path: `01_Projects/${project.slug || 'Course'}`,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    levels: project.levels || [],
+    sessions_per_level: project.sessions_per_level || 1,
+    total_sessions: project.total_sessions ?? null,
+    obsidian_vault_project_path: `01_Projects/${project.slug || 'Course'}`
   };
-
-  const local = getLocal<CourseProject[]>('cds_projects', []);
-  const updated = [newProj, ...local.filter(p => p.id !== newProj.id)];
-  setLocal('cds_projects', updated);
-
-  try {
-    await supabase.from('course_projects').insert([newProj]);
-  } catch {}
-
-  return newProj;
+  return api.post<CourseProject>('/api/Projects', payload);
 }
 
-export async function updateProject(id: string, updates: Partial<CourseProject>): Promise<CourseProject | null> {
-  const local = getLocal<CourseProject[]>('cds_projects', []);
-  const existing = local.find(p => p.id === id);
-  if (!existing) return null;
-
-  const merged: CourseProject = {
-    ...existing,
-    ...updates,
-    updated_at: new Date().toISOString()
-  };
-
-  const updatedList = local.map(p => p.id === id ? merged : p);
-  setLocal('cds_projects', updatedList);
-
-  try {
-    await supabase.from('course_projects').update(updates).eq('id', id);
-  } catch {}
-
-  return merged;
+export async function updateProject(id: string, updates: Partial<CourseProject>): Promise<CourseProject> {
+  const existing = await api.get<CourseProject>(`/api/Projects/${id}`);
+  const merged: CourseProject = { ...existing, ...updates, id: existing.id };
+  return api.put<CourseProject>(`/api/Projects/${id}`, merged);
 }
 
-export async function deleteProject(id: string): Promise<boolean> {
-  const local = getLocal<CourseProject[]>('cds_projects', []);
-  setLocal('cds_projects', local.filter(p => p.id !== id));
+export async function deleteProject(id: string): Promise<void> {
+  await api.delete(`/api/Projects/${id}`);
+}
 
-  try {
-    await supabase.from('course_projects').delete().eq('id', id);
-  } catch {}
+const STAGE_ORDER: PipelineStage[] = ['BRAND_SETUP', 'RECEIPT', 'DIGEST', 'BUNDLE', 'ARTIFACTS'];
 
-  return true;
+// STEP 7: course_sessions has no completed_stages column — it's derivable from
+// current_stage (how far the pipeline got) and status ('approved' means all 5 ran), so it
+// doesn't need one. Replaces the old localStorage-cached completed_stages, which could
+// silently disagree with the session's real current_stage after a backend-only change.
+function deriveCompletedStages(session: CourseSession): CourseSession {
+  if (session.status === 'approved' || session.status === 'completed') {
+    return { ...session, completed_stages: [...STAGE_ORDER] };
+  }
+  const idx = STAGE_ORDER.indexOf(session.current_stage);
+  return { ...session, completed_stages: idx >= 0 ? STAGE_ORDER.slice(0, idx) : [] };
 }
 
 export async function fetchSessions(projectId: string): Promise<CourseSession[]> {
-  const isProj1 = projectId === 'proj-1' || projectId.includes('instrumental');
-
-  const defaultSessions: CourseSession[] = isProj1
-    ? [
-        {
-          id: `sess-1-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 01',
-          title: 'Spectrophotometry and EMR',
-          level: 1,
-          session_number: 1,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-2-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 02',
-          title: 'Beers lambert law.',
-          level: 1,
-          session_number: 2,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-3-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 03',
-          title: 'Components of spectrophotometer',
-          level: 1,
-          session_number: 3,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-4-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 04',
-          title: 'Factors affecting absorption spectrum',
-          level: 1,
-          session_number: 4,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-5-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 05',
-          title: 'Application in pharmaceuticals.',
-          level: 1,
-          session_number: 5,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-6-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 06',
-          title: 'Introduction to Spectrofluorometry.',
-          level: 1,
-          session_number: 6,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-7-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 07',
-          title: 'Introduction to chromatography.',
-          level: 1,
-          session_number: 7,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-8-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 08',
-          title: 'Basic chromatographic techniques.',
-          level: 1,
-          session_number: 8,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-9-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 09',
-          title: 'Column chromatography',
-          level: 1,
-          session_number: 9,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-10-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 10',
-          title: 'HPLC',
-          level: 1,
-          session_number: 10,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-11-${projectId}`,
-          project_id: projectId,
-          session_code: 'Lec 11',
-          title: 'GC and chromatographic theory.',
-          level: 1,
-          session_number: 11,
-          duration_minutes: 60,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ]
-    : [
-        {
-          id: `sess-1-${projectId}`,
-          project_id: projectId,
-          session_code: 'L1-s1',
-          title: 'Introduction & Core Foundations',
-          level: 1,
-          session_number: 1,
-          duration_minutes: 120,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: `sess-2-${projectId}`,
-          project_id: projectId,
-          session_code: 'L1-s2',
-          title: 'Structural Architecture & Hands-on Lab',
-          level: 1,
-          session_number: 2,
-          duration_minutes: 120,
-          current_stage: 'BRAND_SETUP',
-          status: 'draft',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ];
-
-  try {
-    const { data, error } = await supabase
-      .from('course_sessions')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('level', { ascending: true })
-      .order('session_number', { ascending: true });
-    if (!error && Array.isArray(data) && data.length > 0) {
-      return data.map(enrichSessionWithStorage);
-    }
-  } catch {}
-
-  const storageKey = `cds_sessions_${projectId}`;
-  if (typeof window !== 'undefined' && localStorage.getItem(storageKey) !== null) {
-    const cached = getLocal<CourseSession[] | null>(storageKey, null);
-    if (cached !== null && Array.isArray(cached)) {
-      return cached.map(enrichSessionWithStorage);
-    }
-  }
-
-  setLocal(storageKey, defaultSessions);
-  return defaultSessions.map(enrichSessionWithStorage);
-}
-
-function enrichSessionWithStorage(session: CourseSession): CourseSession {
-  if (typeof window === 'undefined') return session;
-  const storedCompleted = localStorage.getItem(`cds_session_completed_stages_${session.id}`);
-  let completed_stages = session.completed_stages || [];
-  if (storedCompleted) {
-    try {
-      const parsed = JSON.parse(storedCompleted);
-      if (Array.isArray(parsed)) completed_stages = parsed;
-    } catch {}
-  }
-  const storedStage = localStorage.getItem(`cds_session_stage_${session.id}`) as PipelineStage;
-  const current_stage = storedStage || session.current_stage || 'BRAND_SETUP';
-  const status = completed_stages.length === 5 ? 'approved' : session.status || 'draft';
-  return {
-    ...session,
-    completed_stages,
-    current_stage,
-    status
-  };
+  const sessions = await api.get<CourseSession[]>(`/api/Projects/${projectId}/sessions`);
+  return sessions.map(deriveCompletedStages);
 }
 
 export async function extractLecturesFromCourseSpecs(projectId: string, customText?: string): Promise<CourseSession[]> {
@@ -740,13 +376,14 @@ export async function extractLecturesFromCourseSpecs(projectId: string, customTe
       ];
     }
 
-    setLocal(`cds_sessions_${projectId}`, extractedLectures);
-  
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('cds_storage_updated'));
+    // STEP 7: these used to only ever live in localStorage — fetchSessions no longer reads
+    // that cache, so extraction results must actually be saved via the real API or they'd
+    // vanish on the next page load.
+    const created: CourseSession[] = [];
+    for (const lecture of extractedLectures) {
+      created.push(await createSession(lecture));
     }
-  
-    return extractedLectures;
+    return created;
 }
 
 export async function syncSessionsFromDossier(projectId: string): Promise<CourseSession[]> {
@@ -754,105 +391,49 @@ export async function syncSessionsFromDossier(projectId: string): Promise<Course
 }
 
 export async function createSession(session: Partial<CourseSession>): Promise<CourseSession> {
-  const newSess: CourseSession = {
-    id: session.id || `sess-${Date.now()}`,
-    project_id: session.project_id || '',
+  if (!session.project_id) throw new Error('createSession requires project_id.');
+  const payload = {
     session_code: session.session_code || 's1',
     title: session.title || 'Session',
     level: session.level || 1,
     session_number: session.session_number || 1,
-    duration_minutes: session.duration_minutes || 60,
-    current_stage: 'BRAND_SETUP',
-    status: 'draft',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    duration_minutes: session.duration_minutes ?? 60,
+    current_stage: session.current_stage || 'BRAND_SETUP',
+    blueprint_markdown: session.blueprint_markdown ?? null,
+    slides_source_markdown: session.slides_source_markdown ?? null,
+    home_summary_markdown: session.home_summary_markdown ?? null,
+    decisions_markdown: session.decisions_markdown ?? null,
+    status: session.status || 'draft',
+    approval_kind: session.approval_kind ?? null,
+    approval_note: session.approval_note ?? null,
   };
-
-  const local = await fetchSessions(newSess.project_id);
-  const updated = [...local, newSess];
-  setLocal(`cds_sessions_${newSess.project_id}`, updated);
-
-  try {
-    await supabase.from('course_sessions').insert([newSess]);
-  } catch {}
-
-  return newSess;
+  const created = await api.post<CourseSession>(`/api/Projects/${session.project_id}/sessions`, payload);
+  return deriveCompletedStages(created);
 }
 
-export async function updateSessionStage(sessionId: string, stage: PipelineStage): Promise<boolean> {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(`cds_session_stage_${sessionId}`, stage);
-  }
-  try {
-    await supabase
-      .from('course_sessions')
-      .update({ current_stage: stage, updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
-  } catch {}
-  return true;
+export async function updateSessionStage(sessionId: string, stage: PipelineStage): Promise<CourseSession> {
+  const existing = await api.get<CourseSession>(`/api/Sessions/${sessionId}`);
+  const updated = await api.put<CourseSession>(`/api/Sessions/${sessionId}`, { ...existing, current_stage: stage });
+  return deriveCompletedStages(updated);
 }
 
-export async function updateSessionCompletedStages(sessionId: string, projectId: string, completedStages: PipelineStage[], currentStage: PipelineStage, status: string = 'draft'): Promise<boolean> {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(`cds_session_completed_stages_${sessionId}`, JSON.stringify(completedStages));
-    localStorage.setItem(`cds_session_stage_${sessionId}`, currentStage);
-  }
-
-  if (projectId) {
-    const local = await fetchSessions(projectId);
-    const updated = local.map(s => s.id === sessionId ? {
-      ...s,
-      completed_stages: completedStages,
-      current_stage: currentStage,
-      status: status
-    } : s);
-    setLocal(`cds_sessions_${projectId}`, updated);
-  }
-
-  try {
-    await supabase
-      .from('course_sessions')
-      .update({ 
-        current_stage: currentStage, 
-        status, 
-        updated_at: new Date().toISOString() 
-      })
-      .eq('id', sessionId);
-  } catch {}
-
-  return true;
+// completedStages is accepted for call-site compatibility but not sent anywhere — it's
+// derived from current_stage/status on every read (see deriveCompletedStages).
+export async function updateSessionCompletedStages(sessionId: string, currentStage: PipelineStage, status: string = 'draft'): Promise<CourseSession> {
+  const existing = await api.get<CourseSession>(`/api/Sessions/${sessionId}`);
+  const updated = await api.put<CourseSession>(`/api/Sessions/${sessionId}`, { ...existing, current_stage: currentStage, status });
+  return deriveCompletedStages(updated);
 }
 
-export async function updateSession(id: string, projectId: string, updates: Partial<CourseSession>): Promise<CourseSession | null> {
-  const local = getLocal<CourseSession[]>(`cds_sessions_${projectId}`, []);
-  const existing = local.find(s => s.id === id);
-  if (!existing) return null;
-
-  const merged: CourseSession = {
-    ...existing,
-    ...updates,
-    updated_at: new Date().toISOString()
-  };
-
-  const updatedList = local.map(s => s.id === id ? merged : s);
-  setLocal(`cds_sessions_${projectId}`, updatedList);
-
-  try {
-    await supabase.from('course_sessions').update(updates).eq('id', id);
-  } catch {}
-
-  return merged;
+export async function updateSession(id: string, updates: Partial<CourseSession>): Promise<CourseSession> {
+  const existing = await api.get<CourseSession>(`/api/Sessions/${id}`);
+  const merged = { ...existing, ...updates, id: existing.id };
+  const updated = await api.put<CourseSession>(`/api/Sessions/${id}`, merged);
+  return deriveCompletedStages(updated);
 }
 
-export async function deleteSession(id: string, projectId: string): Promise<boolean> {
-  const local = getLocal<CourseSession[]>(`cds_sessions_${projectId}`, []);
-  setLocal(`cds_sessions_${projectId}`, local.filter(s => s.id !== id));
-
-  try {
-    await supabase.from('course_sessions').delete().eq('id', id);
-  } catch {}
-
-  return true;
+export async function deleteSession(id: string): Promise<void> {
+  await api.delete(`/api/Sessions/${id}`);
 }
 
 // ── Course Dossier Ingestion Hub ──
@@ -1149,45 +730,30 @@ export async function insertAgentLog(log: Partial<AgentLog>): Promise<AgentLog |
 // ── Quality Receipts & Results ──
 
 export async function fetchQualityReceipts(sessionId: string): Promise<QualityReceipt[]> {
-  try {
-    const { data: receipts, error: receiptError } = await supabase
-      .from('quality_receipts')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: false });
-
-    if (!receiptError && receipts && receipts.length > 0) {
-      return receipts;
-    }
-  } catch {}
-
-  return getLocal<QualityReceipt[]>(`cds_receipts_${sessionId}`, []);
+  return api.get<QualityReceipt[]>(`/api/QualityGates/session/${sessionId}`);
 }
 
-export async function upsertQualityReceipt(receipt: Partial<QualityReceipt>): Promise<QualityReceipt | null> {
-  if (!receipt.session_id) return null;
-  const newReceipt: QualityReceipt = {
-    id: receipt.id || `receipt-${receipt.session_id}`,
-    session_id: receipt.session_id,
-    project_id: receipt.project_id,
-    overall_verdict: receipt.overall_verdict || 'PASS',
-    evaluated_at: receipt.evaluated_at || new Date().toISOString(),
-    gate_results: receipt.gate_results || [
-      { gate_code: 'language_ratio', verdict: 'PASS', metric_value: 1.0, detail: 'Language Policy Verification - PASS' },
-      { gate_code: 'brand_palette', verdict: 'PASS', metric_value: 1.0, detail: 'Brand Palette 100% Compliant' },
-      { gate_code: 'boundary_check', verdict: 'PASS', metric_value: 1.0, detail: 'Zero Lecturer Notes Leakage' },
-      { gate_code: 'asset_reconciliation', verdict: 'PASS', metric_value: 1.0, detail: 'SHA-256 Checksums Reconciled' }
-    ]
-  };
-
-  const local = getLocal<QualityReceipt[]>(`cds_receipts_${receipt.session_id}`, []);
-  const updated = [newReceipt, ...local.filter(r => r.id !== newReceipt.id)];
-  setLocal(`cds_receipts_${receipt.session_id}`, updated);
-
-  try {
-    await supabase.from('quality_receipts').upsert([newReceipt]);
-  } catch {}
-
-  return newReceipt;
+// STEP 7: there is no "upsertQualityReceipt" on the real API and there shouldn't be one —
+// a receipt is only ever the real output of running the registered gates
+// (POST /api/QualityGates/evaluate, which persists it server-side). The old version of this
+// function fabricated a receipt with caller-supplied (usually hardcoded all-PASS) verdicts
+// and wrote it straight to storage as if a gate had actually run. Callers now call
+// runQualityGates below with the session's real content instead.
+export async function runQualityGates(request: {
+  organization_id: string;
+  project_id: string;
+  session_id: string;
+  stage: PipelineStage;
+  learner_text: string;
+  mapped_assets?: unknown[];
+}): Promise<QualityGateResult[]> {
+  return api.post<QualityGateResult[]>('/api/QualityGates/evaluate', {
+    organization_id: request.organization_id,
+    project_id: request.project_id,
+    session_id: request.session_id,
+    stage: request.stage,
+    learner_text: request.learner_text,
+    mapped_assets: request.mapped_assets || [],
+  });
 }
 

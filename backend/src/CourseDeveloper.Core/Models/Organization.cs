@@ -9,7 +9,7 @@ public class Organization
     public Guid Id { get; set; }
     public string Slug { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
-    public InstitutionType InstitutionType { get; set; } = InstitutionType.Academy;
+    public InstitutionType InstitutionType { get; set; } = InstitutionType.academy;
     public string? LogoUrl { get; set; }
     
     // Configurable rules (editable in UI)

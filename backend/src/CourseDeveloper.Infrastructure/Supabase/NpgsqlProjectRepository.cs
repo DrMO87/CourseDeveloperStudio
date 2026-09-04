@@ -26,6 +26,11 @@ public class NpgsqlProjectRepository : IProjectRepository
             Slug = reader.GetString(reader.GetOrdinal("slug")),
             Name = reader.GetString(reader.GetOrdinal("name")),
             OrganizationId = reader.IsDBNull(reader.GetOrdinal("organization_id")) ? null : reader.GetGuid(reader.GetOrdinal("organization_id")),
+            CourseCode = reader.IsDBNull(reader.GetOrdinal("course_code")) ? null : reader.GetString(reader.GetOrdinal("course_code")),
+            CreditHours = reader.IsDBNull(reader.GetOrdinal("credit_hours")) ? null : reader.GetInt32(reader.GetOrdinal("credit_hours")),
+            Prerequisites = reader.IsDBNull(reader.GetOrdinal("prerequisites")) ? null : reader.GetString(reader.GetOrdinal("prerequisites")),
+            AcademicTerm = reader.IsDBNull(reader.GetOrdinal("academic_term")) ? null : reader.GetString(reader.GetOrdinal("academic_term")),
+            TotalSessions = reader.IsDBNull(reader.GetOrdinal("total_sessions")) ? null : reader.GetInt32(reader.GetOrdinal("total_sessions")),
             TargetAgeBand = reader.GetString(reader.GetOrdinal("target_age_band")),
             Levels = ((int[])reader.GetValue(reader.GetOrdinal("levels"))).ToList(),
             SessionsPerLevel = reader.GetInt32(reader.GetOrdinal("sessions_per_level")),
@@ -122,10 +127,12 @@ public class NpgsqlProjectRepository : IProjectRepository
         await using var conn = await _connectionFactory.OpenAsync();
         using var cmd = conn.CreateCommand(@"
             INSERT INTO course_projects (
-                id, user_id, slug, name, organization_id, target_age_band, levels,
+                id, user_id, slug, name, organization_id, course_code, credit_hours,
+                prerequisites, academic_term, total_sessions, target_age_band, levels,
                 sessions_per_level, obsidian_vault_project_path, created_at, updated_at
             ) VALUES (
-                @id, @user_id, @slug, @name, @organization_id, @target_age_band, @levels,
+                @id, @user_id, @slug, @name, @organization_id, @course_code, @credit_hours,
+                @prerequisites, @academic_term, @total_sessions, @target_age_band, @levels,
                 @sessions_per_level, @obsidian_vault_project_path, @created_at, @updated_at
             ) RETURNING *");
 
@@ -134,6 +141,11 @@ public class NpgsqlProjectRepository : IProjectRepository
         cmd.Parameters.AddWithValue("slug", project.Slug);
         cmd.Parameters.AddWithValue("name", project.Name);
         cmd.Parameters.AddWithValue("organization_id", project.OrganizationId ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("course_code", project.CourseCode ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("credit_hours", project.CreditHours ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("prerequisites", project.Prerequisites ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("academic_term", project.AcademicTerm ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("total_sessions", project.TotalSessions ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("target_age_band", project.TargetAgeBand);
         cmd.Parameters.AddWithValue("levels", project.Levels.ToArray());
         cmd.Parameters.AddWithValue("sessions_per_level", project.SessionsPerLevel);
@@ -162,6 +174,11 @@ public class NpgsqlProjectRepository : IProjectRepository
         using var cmd = conn.CreateCommand(@"
             UPDATE course_projects SET
                 name = @name,
+                course_code = @course_code,
+                credit_hours = @credit_hours,
+                prerequisites = @prerequisites,
+                academic_term = @academic_term,
+                total_sessions = @total_sessions,
                 target_age_band = @target_age_band,
                 levels = @levels,
                 sessions_per_level = @sessions_per_level,
@@ -172,6 +189,11 @@ public class NpgsqlProjectRepository : IProjectRepository
 
         cmd.Parameters.AddWithValue("id", project.Id);
         cmd.Parameters.AddWithValue("name", project.Name);
+        cmd.Parameters.AddWithValue("course_code", project.CourseCode ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("credit_hours", project.CreditHours ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("prerequisites", project.Prerequisites ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("academic_term", project.AcademicTerm ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("total_sessions", project.TotalSessions ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("target_age_band", project.TargetAgeBand);
         cmd.Parameters.AddWithValue("levels", project.Levels.ToArray());
         cmd.Parameters.AddWithValue("sessions_per_level", project.SessionsPerLevel);

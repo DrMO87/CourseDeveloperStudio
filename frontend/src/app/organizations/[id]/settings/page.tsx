@@ -106,13 +106,16 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
   };
 
   const handleToggleGate = async (id: string, is_enabled: boolean) => {
+    const gate = gateDefinitions.find(g => g.id === id);
+    if (!gate || !orgId) return;
     try {
-      await toggleGateDefinition(id, is_enabled);
+      await toggleGateDefinition(orgId, gate.gate_code, is_enabled);
       setGateDefinitions(prev =>
         prev.map(g => (g.id === id ? { ...g, is_enabled } : g))
       );
     } catch (err) {
       console.error(err);
+      alert(err instanceof Error ? err.message : 'Failed to toggle gate.');
     }
   };
 

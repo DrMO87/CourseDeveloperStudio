@@ -21,13 +21,18 @@ public enum GenerationJobStatus
     reviewing
 }
 
+// STEP 7 fix: members must match Postgres's `institution_type` enum values (schema.sql:11:
+// 'university','academy','school','nursery','training_center') and the frontend's
+// InstitutionType union type — both lowercase/snake_case. The prior PascalCase members
+// (.ToString() -> "Academy") would fail Postgres's enum column, which only accepts the
+// lowercase labels; this presumably never ran against a live database before now.
 public enum InstitutionType
 {
-    University,
-    Academy,
-    School,
-    Nursery,
-    TrainingCenter
+    university,
+    academy,
+    school,
+    nursery,
+    training_center
 }
 
 public enum DossierFileCategory

@@ -90,9 +90,9 @@ public class NpgsqlSessionRepository : ISessionRepository
                 created_at, updated_at
             ) VALUES (
                 @id, @project_id, @session_code, @level, @session_number, @title,
-                @duration_minutes, @produces_artifacts, @current_stage::text,
+                @duration_minutes, @produces_artifacts, @current_stage::pipeline_stage,
                 @blueprint_markdown, @slides_source_markdown, @home_summary_markdown,
-                @decisions_markdown, @status, @approval_kind::text, @approval_note,
+                @decisions_markdown, @status, @approval_kind::approval_kind, @approval_note,
                 @created_at, @updated_at
             ) RETURNING *");
 
@@ -141,13 +141,13 @@ public class NpgsqlSessionRepository : ISessionRepository
                 title = @title,
                 duration_minutes = @duration_minutes,
                 produces_artifacts = @produces_artifacts,
-                current_stage = @current_stage::text,
+                current_stage = @current_stage::pipeline_stage,
                 blueprint_markdown = @blueprint_markdown,
                 slides_source_markdown = @slides_source_markdown,
                 home_summary_markdown = @home_summary_markdown,
                 decisions_markdown = @decisions_markdown,
                 status = @status,
-                approval_kind = @approval_kind::text,
+                approval_kind = @approval_kind::approval_kind,
                 approval_note = @approval_note,
                 updated_at = @updated_at
             WHERE id = @id

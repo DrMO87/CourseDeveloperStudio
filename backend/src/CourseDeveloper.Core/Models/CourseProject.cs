@@ -11,6 +11,11 @@ public class CourseProject
     public string Name { get; set; } = string.Empty;
     public Guid? OrganizationId { get; set; }
     public Organization? Organization { get; set; }
+    public string? CourseCode { get; set; }
+    public int? CreditHours { get; set; }
+    public string? Prerequisites { get; set; }
+    public string? AcademicTerm { get; set; }
+    public int? TotalSessions { get; set; }
     public string TargetAgeBand { get; set; } = string.Empty;
     public List<int> Levels { get; set; } = new();
     public int SessionsPerLevel { get; set; } = 1;
