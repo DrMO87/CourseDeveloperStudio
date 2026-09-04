@@ -10,12 +10,12 @@ using Npgsql;
 
 public class NpgsqlGateDefinitionRepository : IGateDefinitionRepository
 {
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly IAuthenticatedConnectionFactory _connectionFactory;
     private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public NpgsqlGateDefinitionRepository(NpgsqlDataSource dataSource)
+    public NpgsqlGateDefinitionRepository(IAuthenticatedConnectionFactory connectionFactory)
     {
-        _dataSource = dataSource;
+        _connectionFactory = connectionFactory;
     }
 
     private QualityGateDefinition MapRow(NpgsqlDataReader reader)
@@ -35,16 +35,19 @@ public class NpgsqlGateDefinitionRepository : IGateDefinitionRepository
 
     public async Task<List<QualityGateDefinition>> GetByOrganizationAsync(Guid organizationId)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("SELECT * FROM quality_gate_definitions WHERE organization_id = @organizationId ORDER BY sort_order", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("SELECT * FROM quality_gate_definitions WHERE organization_id = @organizationId ORDER BY sort_order");
         cmd.Parameters.AddWithValue("organizationId", organizationId);
-        
-        using var reader = await cmd.ExecuteReaderAsync();
+
         var list = new List<QualityGateDefinition>();
-        while (await reader.ReadAsync())
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            list.Add(MapRow(reader));
+            while (await reader.ReadAsync())
+            {
+                list.Add(MapRow(reader));
+            }
         }
+        await conn.CommitAsync();
         return list;
     }
 
@@ -53,8 +56,8 @@ public class NpgsqlGateDefinitionRepository : IGateDefinitionRepository
         if (definition.Id == Guid.Empty) definition.Id = Guid.NewGuid();
         if (definition.CreatedAt == default) definition.CreatedAt = DateTime.UtcNow;
 
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(@"
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(@"
             INSERT INTO quality_gate_definitions (
                 id, organization_id, gate_code, display_name, is_enabled, gate_config, sort_order, created_at
             ) VALUES (
@@ -64,7 +67,7 @@ public class NpgsqlGateDefinitionRepository : IGateDefinitionRepository
                 is_enabled = EXCLUDED.is_enabled,
                 gate_config = EXCLUDED.gate_config,
                 sort_order = EXCLUDED.sort_order
-            RETURNING *", conn);
+            RETURNING *");
 
         cmd.Parameters.AddWithValue("id", definition.Id);
         cmd.Parameters.AddWithValue("organization_id", definition.OrganizationId);
@@ -75,28 +78,35 @@ public class NpgsqlGateDefinitionRepository : IGateDefinitionRepository
         cmd.Parameters.AddWithValue("sort_order", definition.SortOrder);
         cmd.Parameters.AddWithValue("created_at", definition.CreatedAt);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        QualityGateDefinition result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            if (!await reader.ReadAsync())
+            {
+                throw new InvalidOperationException("Failed to upsert gate definition.");
+            }
+            result = MapRow(reader);
         }
-        throw new InvalidOperationException("Failed to upsert gate definition.");
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task ToggleAsync(Guid definitionId, bool isEnabled)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("UPDATE quality_gate_definitions SET is_enabled = @isEnabled WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("UPDATE quality_gate_definitions SET is_enabled = @isEnabled WHERE id = @id");
         cmd.Parameters.AddWithValue("id", definitionId);
         cmd.Parameters.AddWithValue("isEnabled", isEnabled);
         await cmd.ExecuteNonQueryAsync();
+        await conn.CommitAsync();
     }
 
     public async Task DeleteAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("DELETE FROM quality_gate_definitions WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("DELETE FROM quality_gate_definitions WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
         await cmd.ExecuteNonQueryAsync();
+        await conn.CommitAsync();
     }
 }

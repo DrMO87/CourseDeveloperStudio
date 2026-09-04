@@ -10,11 +10,11 @@ using Npgsql;
 
 public class NpgsqlSessionRepository : ISessionRepository
 {
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly IAuthenticatedConnectionFactory _connectionFactory;
 
-    public NpgsqlSessionRepository(NpgsqlDataSource dataSource)
+    public NpgsqlSessionRepository(IAuthenticatedConnectionFactory connectionFactory)
     {
-        _dataSource = dataSource;
+        _connectionFactory = connectionFactory;
     }
 
     private CourseSession MapRow(NpgsqlDataReader reader)
@@ -44,31 +44,35 @@ public class NpgsqlSessionRepository : ISessionRepository
 
     public async Task<List<CourseSession>> GetByProjectAsync(Guid projectId)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("SELECT * FROM course_sessions WHERE project_id = @projectId ORDER BY level, session_number", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("SELECT * FROM course_sessions WHERE project_id = @projectId ORDER BY level, session_number");
         cmd.Parameters.AddWithValue("projectId", projectId);
-        
-        using var reader = await cmd.ExecuteReaderAsync();
+
         var list = new List<CourseSession>();
-        while (await reader.ReadAsync())
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            list.Add(MapRow(reader));
+            while (await reader.ReadAsync())
+            {
+                list.Add(MapRow(reader));
+            }
         }
+        await conn.CommitAsync();
         return list;
     }
 
     public async Task<CourseSession?> GetByIdAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("SELECT * FROM course_sessions WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("SELECT * FROM course_sessions WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
-        
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+
+        CourseSession? result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            result = await reader.ReadAsync() ? MapRow(reader) : null;
         }
-        return null;
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task<CourseSession> CreateAsync(CourseSession session)
@@ -76,21 +80,21 @@ public class NpgsqlSessionRepository : ISessionRepository
         session.CreatedAt = DateTime.UtcNow;
         session.UpdatedAt = DateTime.UtcNow;
 
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(@"
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(@"
             INSERT INTO course_sessions (
-                id, project_id, session_code, level, session_number, title, 
-                duration_minutes, produces_artifacts, current_stage, 
-                blueprint_markdown, slides_source_markdown, home_summary_markdown, 
-                decisions_markdown, status, approval_kind, approval_note, 
+                id, project_id, session_code, level, session_number, title,
+                duration_minutes, produces_artifacts, current_stage,
+                blueprint_markdown, slides_source_markdown, home_summary_markdown,
+                decisions_markdown, status, approval_kind, approval_note,
                 created_at, updated_at
             ) VALUES (
-                @id, @project_id, @session_code, @level, @session_number, @title, 
-                @duration_minutes, @produces_artifacts, @current_stage::text, 
-                @blueprint_markdown, @slides_source_markdown, @home_summary_markdown, 
-                @decisions_markdown, @status, @approval_kind::text, @approval_note, 
+                @id, @project_id, @session_code, @level, @session_number, @title,
+                @duration_minutes, @produces_artifacts, @current_stage::text,
+                @blueprint_markdown, @slides_source_markdown, @home_summary_markdown,
+                @decisions_markdown, @status, @approval_kind::text, @approval_note,
                 @created_at, @updated_at
-            ) RETURNING *", conn);
+            ) RETURNING *");
 
         cmd.Parameters.AddWithValue("id", session.Id);
         cmd.Parameters.AddWithValue("project_id", session.ProjectId);
@@ -111,38 +115,43 @@ public class NpgsqlSessionRepository : ISessionRepository
         cmd.Parameters.AddWithValue("created_at", session.CreatedAt);
         cmd.Parameters.AddWithValue("updated_at", session.UpdatedAt);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        CourseSession result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            if (!await reader.ReadAsync())
+            {
+                throw new InvalidOperationException("Failed to insert session.");
+            }
+            result = MapRow(reader);
         }
-        throw new InvalidOperationException("Failed to insert session.");
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task<CourseSession> UpdateAsync(CourseSession session)
     {
         session.UpdatedAt = DateTime.UtcNow;
 
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(@"
-            UPDATE course_sessions SET 
-                session_code = @session_code, 
-                level = @level, 
-                session_number = @session_number, 
-                title = @title, 
-                duration_minutes = @duration_minutes, 
-                produces_artifacts = @produces_artifacts, 
-                current_stage = @current_stage::text, 
-                blueprint_markdown = @blueprint_markdown, 
-                slides_source_markdown = @slides_source_markdown, 
-                home_summary_markdown = @home_summary_markdown, 
-                decisions_markdown = @decisions_markdown, 
-                status = @status, 
-                approval_kind = @approval_kind::text, 
-                approval_note = @approval_note, 
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(@"
+            UPDATE course_sessions SET
+                session_code = @session_code,
+                level = @level,
+                session_number = @session_number,
+                title = @title,
+                duration_minutes = @duration_minutes,
+                produces_artifacts = @produces_artifacts,
+                current_stage = @current_stage::text,
+                blueprint_markdown = @blueprint_markdown,
+                slides_source_markdown = @slides_source_markdown,
+                home_summary_markdown = @home_summary_markdown,
+                decisions_markdown = @decisions_markdown,
+                status = @status,
+                approval_kind = @approval_kind::text,
+                approval_note = @approval_note,
                 updated_at = @updated_at
             WHERE id = @id
-            RETURNING *", conn);
+            RETURNING *");
 
         cmd.Parameters.AddWithValue("id", session.Id);
         cmd.Parameters.AddWithValue("session_code", session.SessionCode);
@@ -161,19 +170,25 @@ public class NpgsqlSessionRepository : ISessionRepository
         cmd.Parameters.AddWithValue("approval_note", session.ApprovalNote ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("updated_at", session.UpdatedAt);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        CourseSession result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            if (!await reader.ReadAsync())
+            {
+                throw new InvalidOperationException("Failed to update session.");
+            }
+            result = MapRow(reader);
         }
-        throw new InvalidOperationException("Failed to update session.");
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task DeleteAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("DELETE FROM course_sessions WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("DELETE FROM course_sessions WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
         await cmd.ExecuteNonQueryAsync();
+        await conn.CommitAsync();
     }
 }

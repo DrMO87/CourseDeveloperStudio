@@ -5,6 +5,22 @@ public enum GateVerdict { PASS, FAIL, UNVERIFIED }
 public enum AssetClass { REFERENCE, EVIDENCE, PHYSICAL_EVIDENCE, PROCEDURAL_SEQUENCE }
 public enum ApprovalKind { specialist_council, owner_business, physical_action_required }
 
+// STEP 5's post-generation states (merging/overlaying/reviewing) reserved here per STEP 4's constraint
+// so the enum doesn't need another migration when that step lands.
+public enum GenerationJobStatus
+{
+    queued,
+    claimed,
+    running,
+    succeeded,
+    failed,
+    canceled,
+    retryable,
+    merging,
+    overlaying,
+    reviewing
+}
+
 public enum InstitutionType
 {
     University,

@@ -11,12 +11,12 @@ using Npgsql;
 
 public class NpgsqlOrganizationRepository : IOrganizationRepository
 {
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly IAuthenticatedConnectionFactory _connectionFactory;
     private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public NpgsqlOrganizationRepository(NpgsqlDataSource dataSource)
+    public NpgsqlOrganizationRepository(IAuthenticatedConnectionFactory connectionFactory)
     {
-        _dataSource = dataSource;
+        _connectionFactory = connectionFactory;
     }
 
     private Organization MapRow(NpgsqlDataReader reader)
@@ -42,44 +42,49 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
 
     public async Task<List<Organization>> GetAllAsync()
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("SELECT * FROM organizations ORDER BY created_at DESC", conn);
-        using var reader = await cmd.ExecuteReaderAsync();
-        
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("SELECT * FROM organizations ORDER BY created_at DESC");
+
         var list = new List<Organization>();
-        while (await reader.ReadAsync())
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            list.Add(MapRow(reader));
+            while (await reader.ReadAsync())
+            {
+                list.Add(MapRow(reader));
+            }
         }
+        await conn.CommitAsync();
         return list;
     }
 
     public async Task<Organization?> GetByIdAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("SELECT * FROM organizations WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("SELECT * FROM organizations WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
-        
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+
+        Organization? result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            result = await reader.ReadAsync() ? MapRow(reader) : null;
         }
-        return null;
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task<Organization?> GetBySlugAsync(string slug)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("SELECT * FROM organizations WHERE slug = @slug", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("SELECT * FROM organizations WHERE slug = @slug");
         cmd.Parameters.AddWithValue("slug", slug);
-        
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+
+        Organization? result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            result = await reader.ReadAsync() ? MapRow(reader) : null;
         }
-        return null;
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task<Organization> CreateAsync(Organization organization)
@@ -88,17 +93,17 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
         organization.CreatedAt = DateTime.UtcNow;
         organization.UpdatedAt = DateTime.UtcNow;
 
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(@"
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(@"
             INSERT INTO organizations (
-                id, slug, name, institution_type, logo_url, brand_palette, 
+                id, slug, name, institution_type, logo_url, brand_palette,
                 language_policy, mascot_config, boundary_terms, quality_guidelines,
                 asset_citation_pattern, evidence_marker_pattern, created_at, updated_at
             ) VALUES (
-                @id, @slug, @name, @institution_type::text, @logo_url, @brand_palette::jsonb, 
+                @id, @slug, @name, @institution_type::text, @logo_url, @brand_palette::jsonb,
                 @language_policy::jsonb, @mascot_config::jsonb, @boundary_terms::jsonb, @quality_guidelines::jsonb,
                 @asset_citation_pattern, @evidence_marker_pattern, @created_at, @updated_at
-            ) RETURNING *", conn);
+            ) RETURNING *");
 
         cmd.Parameters.AddWithValue("id", organization.Id);
         cmd.Parameters.AddWithValue("slug", organization.Slug);
@@ -115,34 +120,39 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
         cmd.Parameters.AddWithValue("created_at", organization.CreatedAt);
         cmd.Parameters.AddWithValue("updated_at", organization.UpdatedAt);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        Organization result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            if (!await reader.ReadAsync())
+            {
+                throw new InvalidOperationException("Failed to insert organization.");
+            }
+            result = MapRow(reader);
         }
-        throw new InvalidOperationException("Failed to insert organization.");
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task<Organization> UpdateAsync(Organization organization)
     {
         organization.UpdatedAt = DateTime.UtcNow;
 
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(@"
-            UPDATE organizations SET 
-                name = @name, 
-                institution_type = @institution_type::text, 
-                logo_url = @logo_url, 
-                brand_palette = @brand_palette::jsonb, 
-                language_policy = @language_policy::jsonb, 
-                mascot_config = @mascot_config::jsonb, 
-                boundary_terms = @boundary_terms::jsonb, 
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(@"
+            UPDATE organizations SET
+                name = @name,
+                institution_type = @institution_type::text,
+                logo_url = @logo_url,
+                brand_palette = @brand_palette::jsonb,
+                language_policy = @language_policy::jsonb,
+                mascot_config = @mascot_config::jsonb,
+                boundary_terms = @boundary_terms::jsonb,
                 quality_guidelines = @quality_guidelines::jsonb,
-                asset_citation_pattern = @asset_citation_pattern, 
-                evidence_marker_pattern = @evidence_marker_pattern, 
+                asset_citation_pattern = @asset_citation_pattern,
+                evidence_marker_pattern = @evidence_marker_pattern,
                 updated_at = @updated_at
             WHERE id = @id
-            RETURNING *", conn);
+            RETURNING *");
 
         cmd.Parameters.AddWithValue("id", organization.Id);
         cmd.Parameters.AddWithValue("name", organization.Name);
@@ -157,19 +167,25 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
         cmd.Parameters.AddWithValue("evidence_marker_pattern", organization.EvidenceMarkerPattern);
         cmd.Parameters.AddWithValue("updated_at", organization.UpdatedAt);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        Organization result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            if (!await reader.ReadAsync())
+            {
+                throw new InvalidOperationException("Failed to update organization.");
+            }
+            result = MapRow(reader);
         }
-        throw new InvalidOperationException("Failed to update organization.");
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task DeleteAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("DELETE FROM organizations WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("DELETE FROM organizations WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
         await cmd.ExecuteNonQueryAsync();
+        await conn.CommitAsync();
     }
 }

@@ -11,62 +11,66 @@ using Npgsql;
 
 public class NpgsqlDossierRepository : IDossierRepository
 {
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly IAuthenticatedConnectionFactory _connectionFactory;
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public NpgsqlDossierRepository(NpgsqlDataSource dataSource)
+    public NpgsqlDossierRepository(IAuthenticatedConnectionFactory connectionFactory)
     {
-        _dataSource = dataSource;
+        _connectionFactory = connectionFactory;
     }
 
     public async Task<List<ProjectDossierFile>> GetByProjectAsync(Guid projectId)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(
             @"SELECT id, project_id, file_name, file_size_bytes, mime_type, category::text, summary, extracted_metadata, file_content_text, file_url, created_at, updated_at
               FROM public.project_dossier_files
               WHERE project_id = @pid
-              ORDER BY created_at DESC", conn);
+              ORDER BY created_at DESC");
         cmd.Parameters.AddWithValue("pid", projectId);
 
-        using var reader = await cmd.ExecuteReaderAsync();
         var files = new List<ProjectDossierFile>();
-        while (await reader.ReadAsync())
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            files.Add(MapRow(reader));
+            while (await reader.ReadAsync())
+            {
+                files.Add(MapRow(reader));
+            }
         }
+        await conn.CommitAsync();
         return files;
     }
 
     public async Task<ProjectDossierFile?> GetByIdAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(
             @"SELECT id, project_id, file_name, file_size_bytes, mime_type, category::text, summary, extracted_metadata, file_content_text, file_url, created_at, updated_at
               FROM public.project_dossier_files
-              WHERE id = @id", conn);
+              WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        ProjectDossierFile? result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            result = await reader.ReadAsync() ? MapRow(reader) : null;
         }
-        return null;
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task<ProjectDossierFile> CreateAsync(ProjectDossierFile file)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(
             @"INSERT INTO public.project_dossier_files (
                 project_id, file_name, file_size_bytes, mime_type, category, summary, extracted_metadata, file_content_text, file_url, created_at, updated_at
               ) VALUES (
                 @project_id, @file_name, @file_size_bytes, @mime_type, @category::dossier_file_category, @summary, @extracted_metadata::jsonb, @file_content_text, @file_url, now(), now()
-              ) RETURNING id, created_at, updated_at", conn);
+              ) RETURNING id, created_at, updated_at");
 
         cmd.Parameters.AddWithValue("project_id", file.ProjectId);
         cmd.Parameters.AddWithValue("file_name", file.FileName);
@@ -78,20 +82,23 @@ public class NpgsqlDossierRepository : IDossierRepository
         cmd.Parameters.AddWithValue("file_content_text", (object?)file.FileContentText ?? DBNull.Value);
         cmd.Parameters.AddWithValue("file_url", (object?)file.FileUrl ?? DBNull.Value);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            file.Id = reader.GetGuid(0);
-            file.CreatedAt = reader.GetDateTime(1);
-            file.UpdatedAt = reader.GetDateTime(2);
+            if (await reader.ReadAsync())
+            {
+                file.Id = reader.GetGuid(0);
+                file.CreatedAt = reader.GetDateTime(1);
+                file.UpdatedAt = reader.GetDateTime(2);
+            }
         }
+        await conn.CommitAsync();
         return file;
     }
 
     public async Task<ProjectDossierFile> UpdateAsync(ProjectDossierFile file)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(
             @"UPDATE public.project_dossier_files SET
                 file_name = @file_name,
                 category = @category::dossier_file_category,
@@ -100,7 +107,7 @@ public class NpgsqlDossierRepository : IDossierRepository
                 file_content_text = @file_content_text,
                 updated_at = now()
               WHERE id = @id
-              RETURNING updated_at", conn);
+              RETURNING updated_at");
 
         cmd.Parameters.AddWithValue("id", file.Id);
         cmd.Parameters.AddWithValue("file_name", file.FileName);
@@ -109,20 +116,24 @@ public class NpgsqlDossierRepository : IDossierRepository
         cmd.Parameters.AddWithValue("extracted_metadata", JsonSerializer.Serialize(file.ExtractedMetadata ?? new(), JsonOpts));
         cmd.Parameters.AddWithValue("file_content_text", (object?)file.FileContentText ?? DBNull.Value);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            file.UpdatedAt = reader.GetDateTime(0);
+            if (await reader.ReadAsync())
+            {
+                file.UpdatedAt = reader.GetDateTime(0);
+            }
         }
+        await conn.CommitAsync();
         return file;
     }
 
     public async Task DeleteAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("DELETE FROM public.project_dossier_files WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("DELETE FROM public.project_dossier_files WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
         await cmd.ExecuteNonQueryAsync();
+        await conn.CommitAsync();
     }
 
     private static ProjectDossierFile MapRow(NpgsqlDataReader reader)

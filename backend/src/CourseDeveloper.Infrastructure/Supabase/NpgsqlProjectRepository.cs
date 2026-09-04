@@ -10,11 +10,11 @@ using Npgsql;
 
 public class NpgsqlProjectRepository : IProjectRepository
 {
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly IAuthenticatedConnectionFactory _connectionFactory;
 
-    public NpgsqlProjectRepository(NpgsqlDataSource dataSource)
+    public NpgsqlProjectRepository(IAuthenticatedConnectionFactory connectionFactory)
     {
-        _dataSource = dataSource;
+        _connectionFactory = connectionFactory;
     }
 
     private CourseProject MapRow(NpgsqlDataReader reader)
@@ -37,7 +37,7 @@ public class NpgsqlProjectRepository : IProjectRepository
 
     public async Task<List<CourseProject>> GetAllAsync(Guid? organizationId = null)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
+        await using var conn = await _connectionFactory.OpenAsync();
         var sql = "SELECT * FROM course_projects ";
         if (organizationId.HasValue)
         {
@@ -45,28 +45,31 @@ public class NpgsqlProjectRepository : IProjectRepository
         }
         sql += "ORDER BY created_at DESC";
 
-        using var cmd = new NpgsqlCommand(sql, conn);
+        using var cmd = conn.CreateCommand(sql);
         if (organizationId.HasValue)
         {
             cmd.Parameters.AddWithValue("orgId", organizationId.Value);
         }
 
-        using var reader = await cmd.ExecuteReaderAsync();
         var list = new List<CourseProject>();
-        while (await reader.ReadAsync())
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            list.Add(MapRow(reader));
+            while (await reader.ReadAsync())
+            {
+                list.Add(MapRow(reader));
+            }
         }
+        await conn.CommitAsync();
         return list;
     }
 
     public async Task<CourseProject?> GetByIdAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        
-        using var cmd = new NpgsqlCommand("SELECT * FROM course_projects WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+
+        using var cmd = conn.CreateCommand("SELECT * FROM course_projects WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
-        
+
         CourseProject? project = null;
         using (var reader = await cmd.ExecuteReaderAsync())
         {
@@ -78,7 +81,7 @@ public class NpgsqlProjectRepository : IProjectRepository
 
         if (project != null)
         {
-            using var sessionCmd = new NpgsqlCommand("SELECT * FROM course_sessions WHERE project_id = @id ORDER BY level, session_number", conn);
+            using var sessionCmd = conn.CreateCommand("SELECT * FROM course_sessions WHERE project_id = @id ORDER BY level, session_number");
             sessionCmd.Parameters.AddWithValue("id", id);
             using var sessionReader = await sessionCmd.ExecuteReaderAsync();
             while (await sessionReader.ReadAsync())
@@ -107,6 +110,7 @@ public class NpgsqlProjectRepository : IProjectRepository
             }
         }
 
+        await conn.CommitAsync();
         return project;
     }
 
@@ -115,15 +119,15 @@ public class NpgsqlProjectRepository : IProjectRepository
         project.CreatedAt = DateTime.UtcNow;
         project.UpdatedAt = DateTime.UtcNow;
 
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(@"
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(@"
             INSERT INTO course_projects (
-                id, user_id, slug, name, organization_id, target_age_band, levels, 
+                id, user_id, slug, name, organization_id, target_age_band, levels,
                 sessions_per_level, obsidian_vault_project_path, created_at, updated_at
             ) VALUES (
-                @id, @user_id, @slug, @name, @organization_id, @target_age_band, @levels, 
+                @id, @user_id, @slug, @name, @organization_id, @target_age_band, @levels,
                 @sessions_per_level, @obsidian_vault_project_path, @created_at, @updated_at
-            ) RETURNING *", conn);
+            ) RETURNING *");
 
         cmd.Parameters.AddWithValue("id", project.Id);
         cmd.Parameters.AddWithValue("user_id", project.UserId);
@@ -137,29 +141,34 @@ public class NpgsqlProjectRepository : IProjectRepository
         cmd.Parameters.AddWithValue("created_at", project.CreatedAt);
         cmd.Parameters.AddWithValue("updated_at", project.UpdatedAt);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        CourseProject result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            if (!await reader.ReadAsync())
+            {
+                throw new InvalidOperationException("Failed to insert project.");
+            }
+            result = MapRow(reader);
         }
-        throw new InvalidOperationException("Failed to insert project.");
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task<CourseProject> UpdateAsync(CourseProject project)
     {
         project.UpdatedAt = DateTime.UtcNow;
 
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand(@"
-            UPDATE course_projects SET 
-                name = @name, 
-                target_age_band = @target_age_band, 
-                levels = @levels, 
-                sessions_per_level = @sessions_per_level, 
-                obsidian_vault_project_path = @obsidian_vault_project_path, 
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand(@"
+            UPDATE course_projects SET
+                name = @name,
+                target_age_band = @target_age_band,
+                levels = @levels,
+                sessions_per_level = @sessions_per_level,
+                obsidian_vault_project_path = @obsidian_vault_project_path,
                 updated_at = @updated_at
             WHERE id = @id
-            RETURNING *", conn);
+            RETURNING *");
 
         cmd.Parameters.AddWithValue("id", project.Id);
         cmd.Parameters.AddWithValue("name", project.Name);
@@ -169,19 +178,25 @@ public class NpgsqlProjectRepository : IProjectRepository
         cmd.Parameters.AddWithValue("obsidian_vault_project_path", project.ObsidianVaultProjectPath ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("updated_at", project.UpdatedAt);
 
-        using var reader = await cmd.ExecuteReaderAsync();
-        if (await reader.ReadAsync())
+        CourseProject result;
+        using (var reader = await cmd.ExecuteReaderAsync())
         {
-            return MapRow(reader);
+            if (!await reader.ReadAsync())
+            {
+                throw new InvalidOperationException("Failed to update project.");
+            }
+            result = MapRow(reader);
         }
-        throw new InvalidOperationException("Failed to update project.");
+        await conn.CommitAsync();
+        return result;
     }
 
     public async Task DeleteAsync(Guid id)
     {
-        using var conn = await _dataSource.OpenConnectionAsync();
-        using var cmd = new NpgsqlCommand("DELETE FROM course_projects WHERE id = @id", conn);
+        await using var conn = await _connectionFactory.OpenAsync();
+        using var cmd = conn.CreateCommand("DELETE FROM course_projects WHERE id = @id");
         cmd.Parameters.AddWithValue("id", id);
         await cmd.ExecuteNonQueryAsync();
+        await conn.CommitAsync();
     }
 }

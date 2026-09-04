@@ -237,3 +237,126 @@ create policy "Users can CRUD gate results via receipt/project ownership" on pub
 ) with check (
     receipt_id in (select qr.id from public.quality_receipts qr join public.course_projects cp on qr.project_id = cp.id where cp.user_id = auth.uid())
 );
+
+-- 12. RLS/auth-context roles (STEP 2 blocker #3, folded into STEP 4)
+--
+-- CourseDeveloper.Api's SUPABASE_CONNECTION_STRING must authenticate as studio_api, not
+-- postgres/service_role: postgres and service_role both BYPASSRLS, which would silently
+-- defeat every ownership policy above regardless of what AuthenticatedConnectionFactory
+-- does at the transaction level. studio_api can only SET ROLE authenticated — it cannot
+-- read or write anything itself. CREATE ROLE has no IF NOT EXISTS, so guard with a DO
+-- block for safe re-runs. New roles have no password and cannot authenticate until a real
+-- secret is set out of band in Supabase and placed only in the deployed connection string.
+do $$
+begin
+    if not exists (select from pg_catalog.pg_roles where rolname = 'studio_api') then
+        create role studio_api with login noinherit nosuperuser nocreatedb nocreaterole nobypassrls;
+    end if;
+end
+$$;
+
+grant authenticated to studio_api;
+
+-- CourseDeveloper.Worker connects as generation_worker instead: it is a background
+-- process with no per-request JWT to check ownership against, so it gets its own
+-- narrowly-scoped role (grants below are limited to generation_job/generation_job_event
+-- only) rather than either bypassing RLS or being forced through the per-user path.
+do $$
+begin
+    if not exists (select from pg_catalog.pg_roles where rolname = 'generation_worker') then
+        create role generation_worker with login noinherit nosuperuser nocreatedb nocreaterole nobypassrls;
+    end if;
+end
+$$;
+
+-- 13. Generation jobs (STEP 4) — durable, Postgres-backed queue for long-running
+-- academy-brain generation runs. The worker skeleton polls/claims/heartbeats this table;
+-- STEP 5 is the one that actually invokes academy-brain from a claimed job.
+create type generation_job_status as enum (
+    'queued', 'claimed', 'running', 'succeeded', 'failed', 'canceled', 'retryable',
+    'merging', 'overlaying', 'reviewing'
+);
+
+create table if not exists public.generation_job (
+    id uuid primary key default uuid_generate_v4(),
+    project_id uuid references public.course_projects(id) on delete cascade not null,
+    session_id uuid references public.course_sessions(id) on delete cascade not null,
+    operation text not null,
+    idempotency_key text not null,
+    notebooklm_account_key text not null default 'default',
+    status generation_job_status not null default 'queued',
+
+    claimed_by text,
+    claimed_at timestamptz,
+    lease_expires_at timestamptz,
+    heartbeat_at timestamptz,
+    attempt_count int not null default 0,
+    max_attempts int not null default 3,
+
+    external_task_id text,
+    academy_brain_version text,
+    cancel_requested boolean not null default false,
+
+    payload jsonb not null default '{}',
+    result_manifest jsonb,
+    error_details jsonb,
+    progress jsonb not null default '{}',
+
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+-- One worker may own a (course, session, operation) idempotency key at a time (STEP 4
+-- constraint): only one non-terminal job per key may exist. A partial unique index (not a
+-- table-wide constraint) so retried/completed history keeps its own rows instead of
+-- colliding with the next attempt.
+create unique index if not exists generation_job_active_idempotency_key
+    on public.generation_job (idempotency_key)
+    where status in ('queued', 'claimed', 'running', 'retryable', 'merging', 'overlaying', 'reviewing');
+
+create unique index if not exists generation_job_one_in_flight_per_project
+    on public.generation_job (project_id)
+    where status in ('claimed', 'running', 'merging', 'overlaying', 'reviewing');
+
+create unique index if not exists generation_job_one_in_flight_per_notebooklm_account
+    on public.generation_job (notebooklm_account_key)
+    where status in ('claimed', 'running', 'merging', 'overlaying', 'reviewing');
+
+create index if not exists generation_job_claim_lookup
+    on public.generation_job (status, project_id, created_at);
+
+create index if not exists generation_job_lease_lookup
+    on public.generation_job (status, lease_expires_at);
+
+create table if not exists public.generation_job_event (
+    id uuid primary key default uuid_generate_v4(),
+    job_id uuid references public.generation_job(id) on delete cascade not null,
+    event_type text not null,
+    detail jsonb not null default '{}',
+    created_at timestamptz not null default now()
+);
+
+create index if not exists generation_job_event_job_lookup
+    on public.generation_job_event (job_id, created_at);
+
+alter table public.generation_job enable row level security;
+alter table public.generation_job_event enable row level security;
+
+create policy "Users can CRUD generation jobs via project ownership" on public.generation_job for all to authenticated using (
+    project_id in (select id from public.course_projects where user_id = auth.uid())
+) with check (
+    project_id in (select id from public.course_projects where user_id = auth.uid())
+);
+
+create policy "Users can read generation job events via project ownership" on public.generation_job_event for select to authenticated using (
+    job_id in (select gj.id from public.generation_job gj join public.course_projects cp on gj.project_id = cp.id where cp.user_id = auth.uid())
+);
+
+create policy "generation_worker full access to jobs" on public.generation_job for all to generation_worker using (true) with check (true);
+create policy "generation_worker full access to job events" on public.generation_job_event for all to generation_worker using (true) with check (true);
+
+-- RLS policies filter rows but do not grant the underlying privileges.
+grant usage on schema public to generation_worker;
+grant usage on type public.generation_job_status to generation_worker;
+grant select, insert, update, delete on public.generation_job to generation_worker;
+grant select, insert, update, delete on public.generation_job_event to generation_worker;

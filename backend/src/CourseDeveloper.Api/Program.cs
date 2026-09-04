@@ -1,3 +1,4 @@
+using CourseDeveloper.Api.Auth;
 using CourseDeveloper.Core.Interfaces;
 using CourseDeveloper.Infrastructure.Agents;
 using CourseDeveloper.Infrastructure.Obsidian;
@@ -38,6 +39,14 @@ builder.Services.AddSingleton(_ =>
     var dataSourceBuilder = new NpgsqlDataSourceBuilder(supabaseConnectionString);
     return dataSourceBuilder.Build();
 });
+
+// RLS/auth-context (STEP 2 blocker #3, folded into STEP 4): every repository operation
+// runs inside a transaction that sets the session's identity from the validated JWT
+// (SET LOCAL ROLE authenticated + request.jwt.claims), so Supabase's auth.uid()-keyed
+// RLS policies see the real caller instead of one fixed connection-string role.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IRequestIdentity, HttpContextRequestIdentity>();
+builder.Services.AddScoped<IAuthenticatedConnectionFactory, AuthenticatedConnectionFactory>();
 
 // Register Repositories
 builder.Services.AddScoped<IOrganizationRepository, NpgsqlOrganizationRepository>();

@@ -368,7 +368,7 @@ CourseDeveloperStudio's frontend talks only to its own authenticated .NET backen
 | 1 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step1-backend-auth-di.md` | 2026-09-04 |
 | 2 | system-architect | Complete, pending user approval to commit | `docs/tickets/handoffs/step2-schema-ownership.md` | 2026-09-04 |
 | 3 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step3-gate-registry.md` | 2026-09-04 |
-| 4 | backend-dev | Not started | | — |
+| 4 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step4-generation-job-worker.md` | 2026-09-04 |
 | 5 | backend-dev + coder | Not started | | — |
 | 6 | devops-automator | Not started | | — |
 | 7 | frontend-developer | Not started | | — |
