@@ -33,19 +33,17 @@ public class QualityGatesController : ControllerBase
     public async Task<ActionResult<List<QualityGateResult>>> EvaluateGates([FromBody] RunGatesRequest request, [FromQuery] Guid? organizationId)
     {
         var orgId = organizationId ?? request.OrganizationId;
-        var receipt = await _gateRunner.EvaluateAsync(orgId, request.ProjectId, request.SessionId, request.Stage, request.LearnerText, request.MappedAssets);
-        return Ok(receipt.GateResults);
+        try
+        {
+            var receipt = await _gateRunner.EvaluateAsync(orgId, request.ProjectId, request.SessionId, request.Stage, request.LearnerText, request.MappedAssets);
+            return Ok(receipt.GateResults);
+        }
+        catch (QualityGateConfigurationException exception)
+        {
+            return Problem(
+                detail: exception.Message,
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "Quality gate configuration error");
+        }
     }
-
-    [HttpPost("check-arabic")]
-    public async Task<ActionResult<GateResult>> CheckArabic([FromBody] string text, [FromQuery] Guid organizationId) 
-        => Ok(await _gateRunner.CheckArabicRatioAsync(organizationId, text));
-
-    [HttpPost("check-boundary")]
-    public async Task<ActionResult<GateResult>> CheckBoundary([FromBody] string text, [FromQuery] Guid organizationId) 
-        => Ok(await _gateRunner.CheckBoundaryMarkersAsync(organizationId, text));
-
-    [HttpPost("check-palette")]
-    public async Task<ActionResult<GateResult>> CheckPalette([FromBody] string text, [FromQuery] Guid organizationId) 
-        => Ok(await _gateRunner.CheckBrandPaletteAsync(organizationId, text));
 }

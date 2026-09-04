@@ -2,12 +2,18 @@ namespace CourseDeveloper.Infrastructure.QualityGates;
 
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using CourseDeveloper.Core.Enums;
 using CourseDeveloper.Core.Interfaces;
 using CourseDeveloper.Core.Models;
 
-public class LanguageRatioGate
+public class LanguageRatioGate : IQualityGate
 {
+    public string Code => "language_ratio";
+
+    public Task<GateResult> EvaluateAsync(GateContext context, Dictionary<string, object> config)
+        => Task.FromResult(Evaluate(context.LearnerText, context.Organization.LanguagePolicy));
+
     private bool IsScript(char ch, string script)
     {
         int code = ch;
@@ -57,10 +63,11 @@ public class LanguageRatioGate
 
         if (Math.Abs(ratio - policy.TargetRatio) <= policy.Tolerance)
         {
-            return new GateResult("language_ratio", GateVerdict.PASS, $"Primary script ratio {ratio:P0} within tolerance [{policy.TargetRatio - policy.Tolerance:P0}-{policy.TargetRatio + policy.Tolerance:P0}]", evidence);
+            return new GateResult("language_ratio", GateVerdict.PASS, $"Primary script ratio {ratio:P0} within tolerance [{policy.TargetRatio - policy.Tolerance:P0}-{policy.TargetRatio + policy.Tolerance:P0}]", evidence, Convert.ToDecimal(Math.Round(ratio, 4)));
         }
 
         string direction = ratio < policy.TargetRatio ? $"too little {policy.PrimaryScript}" : $"too little {policy.SecondaryScript}";
-        return new GateResult("language_ratio", GateVerdict.FAIL, $"Primary script ratio {ratio:P0} outside target {policy.TargetRatio:P0} ({direction})", evidence);
+        evidence["remedy"] = $"Adjust the {policy.PrimaryScript}/{policy.SecondaryScript} script balance to the configured target range.";
+        return new GateResult("language_ratio", GateVerdict.FAIL, $"Primary script ratio {ratio:P0} outside target {policy.TargetRatio:P0} ({direction})", evidence, Convert.ToDecimal(Math.Round(ratio, 4)));
     }
 }

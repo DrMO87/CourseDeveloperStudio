@@ -79,7 +79,7 @@ public class DossierController : ControllerBase
     public async Task<ActionResult> Delete(Guid id)
     {
         await _dossierRepo.DeleteAsync(id);
-        return NoContent;
+        return NoContent();
     }
 
     /// <summary>

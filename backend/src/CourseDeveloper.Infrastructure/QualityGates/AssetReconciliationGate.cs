@@ -4,13 +4,19 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using CourseDeveloper.Core.Enums;
 using CourseDeveloper.Core.Interfaces;
 using CourseDeveloper.Core.Models;
 
-public class AssetReconciliationGate
+public class AssetReconciliationGate : IQualityGate
 {
     private static readonly string DefaultCitationPattern = @"\*\*Asset:\*\*\s*`([^`]+)`";
+
+    public string Code => "asset_reconciliation";
+
+    public Task<GateResult> EvaluateAsync(GateContext context, Dictionary<string, object> config)
+        => Task.FromResult(Evaluate(context.LearnerText, context.MappedAssets, context.Organization.AssetCitationPattern));
 
     public GateResult Evaluate(string slideMarkdown, List<SessionAsset> mappedAssets, string? citationPattern = null)
     {
@@ -47,6 +53,7 @@ public class AssetReconciliationGate
 
         if (missingOrUnresolved.Any())
         {
+            evidence["remedy"] = "Map each dangling asset reference to a registered asset or remove the reference.";
             return new GateResult("asset_reconciliation", GateVerdict.FAIL, $"Dangling asset reference(s) found in slides: {string.Join(", ", missingOrUnresolved)}", evidence);
         }
 

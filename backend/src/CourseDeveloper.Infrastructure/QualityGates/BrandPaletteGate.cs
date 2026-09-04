@@ -4,13 +4,19 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using CourseDeveloper.Core.Enums;
 using CourseDeveloper.Core.Interfaces;
 using CourseDeveloper.Core.Models;
 
-public class BrandPaletteGate
+public class BrandPaletteGate : IQualityGate
 {
     private static readonly Regex HexRegex = new(@"#[0-9A-Fa-f]{6}", RegexOptions.Compiled);
+
+    public string Code => "brand_palette";
+
+    public Task<GateResult> EvaluateAsync(GateContext context, Dictionary<string, object> config)
+        => Task.FromResult(Evaluate(context.LearnerText, context.Organization.BrandPalette));
 
     public GateResult Evaluate(string text, BrandPalette palette)
     {
@@ -35,6 +41,7 @@ public class BrandPaletteGate
 
         if (foundRetired.Any())
         {
+            evidence["remedy"] = "Replace the listed retired colors with colors from the approved brand palette.";
             return new GateResult("brand_palette", GateVerdict.FAIL, $"Retired placeholder color(s) present: {string.Join(", ", foundRetired)}", evidence);
         }
 

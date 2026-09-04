@@ -22,6 +22,12 @@ builder.Services.AddSingleton<IObsidianVaultService, ObsidianVaultService>();
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 builder.Services.AddScoped<IQualityGateRunner, GateRunnerService>();
 
+// Gate implementations are stateless and have no scoped dependencies.
+builder.Services.AddSingleton<IQualityGate, LanguageRatioGate>();
+builder.Services.AddSingleton<IQualityGate, BoundaryCheckGate>();
+builder.Services.AddSingleton<IQualityGate, BrandPaletteGate>();
+builder.Services.AddSingleton<IQualityGate, AssetReconciliationGate>();
+
 // Supabase PostgreSQL via Npgsql
 var supabaseConnectionString = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING") 
     ?? builder.Configuration.GetConnectionString("SupabaseDb")
