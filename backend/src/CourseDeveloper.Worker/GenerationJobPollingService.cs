@@ -123,6 +123,11 @@ public sealed class GenerationJobPollingService : BackgroundService
         {
             _logger.LogWarning("Job {JobId} execution stopped because its lease was lost.", job.Id);
         }
+        catch (NonRetryableJobExecutionException ex)
+        {
+            _logger.LogError(ex, "Job {JobId} failed deterministically; will not retry.", job.Id);
+            await _repo.FailAsync(job.Id, _workerId, new Dictionary<string, object> { ["message"] = ex.Message }, retryable: false);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Job {JobId} failed.", job.Id);

@@ -21,7 +21,7 @@ builder.Services.AddSingleton(_ =>
 });
 
 builder.Services.AddSingleton<IGenerationJobRepository, NpgsqlGenerationJobRepository>();
-builder.Services.AddSingleton<IGenerationJobExecutor, StubGenerationJobExecutor>();
+builder.Services.AddSingleton<IGenerationJobExecutor, AcademyBrainSubprocessExecutor>();
 builder.Services.AddHostedService<GenerationJobPollingService>();
 
 var host = builder.Build();

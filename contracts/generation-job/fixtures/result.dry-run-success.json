@@ -1,0 +1,13 @@
+{
+  "contractVersion": 1,
+  "studioBuild": { "commitSha": "ac56469example0000000000000000000000000" },
+  "sessionId": "L1-s1",
+  "exitCode": 0,
+  "stdoutTail": "L1-s1: 3 assets, 1 reserved as evidence\n  deck-a   -> 2 sources, notebook 'nb-1'\n\ndry run — nothing uploaded, no quota spent. Add --live to fire.",
+  "receiptPath": null,
+  "pedagogy": {
+    "gate": "pedagogy-coverage",
+    "verdict": "UNVERIFIED",
+    "detail": "no pedagogy record at D:/vault/academy-brain/30-research/1-pedagogy.yaml"
+  }
+}

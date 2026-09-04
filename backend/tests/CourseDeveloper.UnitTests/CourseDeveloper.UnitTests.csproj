@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CourseDeveloper.Core\CourseDeveloper.Core.csproj" />
     <ProjectReference Include="..\..\src\CourseDeveloper.Infrastructure\CourseDeveloper.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\CourseDeveloper.Worker\CourseDeveloper.Worker.csproj" />
   </ItemGroup>
 </Project>

@@ -203,20 +203,20 @@ The worker's deployed image contains both `CourseDeveloper.Worker` and the Pytho
 **Owner:** backend-dev (contract + adapter), coder (academy-brain-side config externalization)
 **Starts when:** STEP 4 handoff exists
 
-**Task:** Physically move academy-brain's source into this monorepo at `/academy-brain` (per DEC-004's repository shape above) — including `pyproject.toml`, `scripts/swarm/`, `00-contracts/`, and `tests/` — verify the moved copy is the authoritative one (working tree diff against the pre-move `D:\vault\academy-brain` clean), and retire/archive the old `D:\vault\academy-brain` repository per Standing Rule 9. Then define a versioned job-request/result contract between Studio's worker and academy-brain, implement the subprocess adapter in `CourseDeveloper.Worker` that invokes academy-brain's code from the newly-moved `/academy-brain` (no more "pinned external release"), and externalize academy-brain's currently hardcoded execution-boundary values (vault/course root, brand/language/boundary config, NotebookLM credential reference, output location) so the adapter can pass them per-job instead of relying on `generate_session.py`'s process-global `VAULT`/`COURSE`/`BRAND` bindings. Per DEC-005, the job result must also report a **transformation summary** (what was preserved from the source text verbatim, what was added, what was mechanically adjusted) — sourced from academy-brain's real pedagogy-coverage gate output, not a guess — for STEP 8's customer-facing receipt.
+**Task:** Physically move academy-brain's source into this monorepo at `/academy-brain` (per DEC-004's repository shape above) — including `pyproject.toml`, `scripts/swarm/`, `00-contracts/`, and `tests/` — verify the moved copy is the authoritative one (working tree diff against the pre-move `D:\vault\academy-brain` clean), and retire/archive the old `D:\vault\academy-brain` repository per Standing Rule 9. Then define a versioned job-request/result contract between Studio's worker and academy-brain, implement the subprocess adapter in `CourseDeveloper.Worker` that invokes academy-brain's code from the newly-moved `/academy-brain` (no more "pinned external release"), and externalize academy-brain's currently hardcoded execution-boundary *path* values (vault/course root, NotebookLM credential reference, output location) so the adapter can pass them per-job instead of relying on `generate_session.py`'s process-global `VAULT`/`COURSE`/`BRAND` path bindings. Gate *rule-values* (brand palette colors, language ratio targets, boundary terms) are explicitly out of scope here — see Scope Lock and STEP 12, which does that half. Per DEC-005, the job result must also report a **transformation summary** (what was preserved from the source text verbatim, what was added, what was mechanically adjusted) — sourced from academy-brain's real pedagogy-coverage gate output, not a guess — for STEP 8's customer-facing receipt.
 
 **Mandatory reading:**
 - `D:\vault\academy-brain\scripts\swarm\generate_session.py` lines ~18, 39–51, 592–874 (pre-move source, at its current path — read before moving) — the CLI entrypoint, the hardcoded globals, and the NotebookLM stored-session client usage (confirmed by Codex to be a stored-credential API client, not live browser automation — correct this in any docs that still say "browser automation")
 - `D:\vault\academy-brain\scripts\swarm\paths.py` — `CoursePaths`/`for_root(root)` already exists; `generate_session.py` doesn't use it yet, which is exactly the gap this step closes
 - `D:\vault\academy-brain\00-contracts\pedagogy.md` and `scripts\swarm\gates\pedagogy_coverage.py` — the real pedagogy check (Bloom's taxonomy) this step must expose in the job result, replacing the MVP's current Groq-only, regex-based objective/skill detection (`D:\vault\Dr mahmoud MVP\src\server\first-route\governed-input-service.ts` ~line 229, 381)
-- `backend/src/CourseDeveloper.Core/Models/Organization.cs` — the source of the brand/language/boundary config this step must thread through
+- `backend/src/CourseDeveloper.Core/Models/Organization.cs` — the source of the brand/language/boundary config; NOT this step's job (see Scope Lock) — read only to confirm the fields this step's job-contract shape will need to accommodate later, in STEP 12
 - `docs/tickets/codex-review-evidence/academybrain-review.json` (decisions 1 and 3) and `docs/tickets/codex-review-evidence/engine-placement-reversal-review.json` (DEC-004's effect on this step, including the migration rule) — full evidence
 
 **Constraints:**
 - academy-brain stays Python; do not port any of it to C# (not reopenable without a new user ruling).
 - Per DEC-004: academy-brain's source lives in this same repo (`/academy-brain`), builds and deploys from the same commit as the rest of Studio — no separate release/version to pin, no copy-and-diverge risk. The job payload keeps `contractVersion` (the job-contract schema version) separate from `studioBuild`/`commitSha` (the Studio build/commit that executed the job) — see STEP 2. Neither field is an academy-brain release number.
 - The adapter must invoke academy-brain via `CoursePaths.for_root(root)`, not the legacy module-level globals — this is the concrete de-hardcoding step, not a full institute-agnostic rewrite of every gate module.
-- One end-to-end Techno Square course must actually run through this path before the step is called done (decision 3's "thin vertical slice") — but only after the config values above are externalized, not before.
+- One end-to-end Techno Square course must actually run through this path before the step is called done (decision 3's "thin vertical slice") — but only after the path values above are externalized, not before.
 - Extraction stays dumb text-pulling (structuring pasted/uploaded content into fields); the pedagogy pass is a distinct step in the job pipeline that runs academy-brain's real gate, not the extraction model itself guessing objectives.
 - The old `D:\vault\academy-brain` repository must be marked archived/read-only once the move is verified — no dual-maintenance window beyond this step (Standing Rule 9).
 
@@ -235,7 +235,7 @@ The worker's deployed image contains both `CourseDeveloper.Worker` and the Pytho
 **Owner:** devops-automator
 **Starts when:** STEP 5 handoff exists
 
-**Task:** Package academy-brain's runtime as a reproducible worker image — per DEC-004, this image bundles `CourseDeveloper.Worker` **and** the Python runtime + academy-brain code from the same repo commit, replacing the current machine-specific venv path — provision NotebookLM credentials through a secret store instead of local stored-session files, and define durable artifact storage for generated course outputs off the local filesystem.
+**Task:** Package academy-brain's runtime as a reproducible worker image — per DEC-004, this image bundles `CourseDeveloper.Worker` **and** the Python runtime + academy-brain code from the same repo commit, replacing the current machine-specific venv path — provision NotebookLM credentials through a secret store instead of local stored-session files, and define durable artifact storage for generated course outputs off the local filesystem. **This step also closes a concrete gap STEP 5 left open**: `GenerationJob.NotebookLmAccountKey` (`backend/src/CourseDeveloper.Core/Models/GenerationJob.cs:14`) is stored on every job and already used to keep two jobs on the same account from running concurrently (`NpgsqlGenerationJobRepository.cs:143`), but nothing resolves that key to the `pythonExecutable` interpreter path STEP 5's job-request contract requires for a live run (`contracts/generation-job/request.schema.json`'s `pythonExecutable` field). Define that resolver here — e.g. a per-account-key table/env mapping to an interpreter path with that account's stored NotebookLM session — as part of the secret-store provisioning work.
 
 **Mandatory reading:**
 - `D:\vault\academy-brain\pyproject.toml` (pre-move source — by STEP 6's start, the authoritative copy is at this monorepo's `/academy-brain/pyproject.toml` per STEP 5) — current dependency list (missing `notebooklm`, per Codex finding)
@@ -246,6 +246,7 @@ The worker's deployed image contains both `CourseDeveloper.Worker` and the Pytho
 - `notebooklm` must be declared as an explicit dependency, not an implicit import.
 - Credential provisioning must support rotation without redeploying the worker image.
 - Artifacts must land somewhere Studio-visible (not just the local job workspace) with hashes/locations recorded in Postgres per STEP 4's job schema.
+- The `NotebookLmAccountKey` → `pythonExecutable` resolver must be a lookup the worker performs at execution time (e.g. from the secret store, keyed by the job's account key), not a value baked into the enqueue-time job payload — rotating a credential must not require re-enqueuing in-flight jobs.
 
 **Scope lock — do NOT:**
 - Do not change the job/worker logic from STEP 4/5 — this step is packaging, secrets, and storage only.
@@ -417,6 +418,49 @@ Per STEP 9's established pattern: compare, propose, do not implement — whether
 
 ---
 
+## STEP 12 — backend-dev + coder: multi-institute gate parameterization (brand/language config)
+
+**Owner:** backend-dev (payload/config plumbing), coder (Python gate changes)
+**Starts when:** STEP 5's config/subprocess contract exists (`--root`/`CoursePaths.for_root`, the job-contract schema, `AcademyBrainSubprocessExecutor`) — not gated on STEP 5's own full exit criteria (real Techno Square end-to-end run), which remains separately open per its handoff.
+
+**Task:** STEP 5 de-hardcoded *where* a course's files live (`--root`); this step de-hardcodes the *institute-specific rule values* still baked into individual gate modules as Python constants. This is not hypothetical — real evidence of multiple institutes already in the pipeline:
+- `vaults/Inst-Analysis/02_Areas/horus-university-egypt/Brand_Identity_Contract.md` — a real second organization (Horus University — Egypt, Faculty of Pharmacy) already has its own approved/retired brand palette recorded via Studio's own vault sync, distinct from Techno Square's.
+- Sibling course vaults already running outside Techno Square: `D:\vault\ev3-academy`, `D:\vault\microbit-academy`, `D:\vault\lipincott pharma` (a pharmacy course — not even the same subject area), `D:\vault\code-square`, `D:\vault\LV1 reg FOPPU`. These prove multiple real institutional/course contexts exist — they are NOT confirmed to be academy-brain-compatible course roots, and this step must not assume it can run academy-brain against any of them.
+- `Organization.cs` (`backend/src/CourseDeveloper.Core/Models/Organization.cs`) already has the fields this data belongs in — `BrandPalette.Approved/Retired`, `LanguagePolicy.PrimaryScript/TargetRatio/Tolerance/SecondaryScript`, `BoundaryTerms.ForbiddenStrings`. These fields are already read/written by `NpgsqlOrganizationRepository` and consumed by Studio's own C# gates — they are unused only by *academy-brain*, not unused generally.
+
+Concretely, replace these two module-level constants with values read from per-job config (the same `--root`-adjacent mechanism, e.g. a small JSON config file the C# adapter writes per job and a gate-loader reads, or a `--org-config <path>` CLI arg mirroring `--root`):
+- `academy-brain/scripts/swarm/gates/brand_palette.py:9-10` — `APPROVED = frozenset({"#231F20", "#FFED10", "#585858", "#FFFFFF"})` / `RETIRED = frozenset({"#F5B301", "#1A1A1A"})` — Techno Square's literal hex codes, hardcoded. **Note the gate's actual algorithm only rejects colors intersecting `RETIRED` (`brand_palette.py:18,22`) — `APPROVED` is never enforced as an allowlist.** Preserve that retired-only semantics per Constraints below; do not silently turn it into an allowlist check.
+- `academy-brain/scripts/swarm/gates/arabic_ratio.py:7-8` — `TARGET_ARABIC = 0.70` / `TOLERANCE = 0.10` — not every institute wants an Arabic/English mix at all (e.g. an English-only pharmacy course). Externalize both `TargetRatio` AND `Tolerance` (both are currently hardcoded; don't parameterize only one). Note `arabic_ratio.py:13,18` also hardcodes which Unicode ranges count as "Arabic" vs "Latin" — passing `PrimaryScript`/`SecondaryScript` selects between two fixed classifiers, it does not generalize to arbitrary scripts. If a future institute needs a third script, that's a separate, explicitly-authorized algorithm change, not silently in scope here.
+
+**Assess, don't blindly move:** `boundary_check.py`'s `TRAINER_MARKERS`/`TRAINER_PATTERNS` (trainer-vs-student content leakage detection, grounded in the student-facing-content rule at `boundary_check.py:1`) is academy-wide output hygiene, not an institute-specific brand rule. Resolution: **keep `TRAINER_MARKERS`/`TRAINER_PATTERNS` as a mandatory baseline that always runs; treat `Organization.BoundaryTerms.ForbiddenStrings` as additive institute-specific terms unioned on top of that baseline — never as a replacement.** An institute must not be able to silently erase the baseline leakage check by supplying an empty or partial override list. (This also fixes an existing bug: today an empty org `ForbiddenStrings` list makes `BoundaryCheckGate.cs` report UNVERIFIED instead of running the baseline check — `backend/src/CourseDeveloper.Infrastructure/QualityGates/BoundaryCheckGate.cs:20`.)
+
+**Mandatory reading:**
+- `academy-brain/scripts/swarm/gates/brand_palette.py`, `arabic_ratio.py`, `boundary_check.py` — the three candidate gates
+- `backend/src/CourseDeveloper.Core/Models/Organization.cs` — the config shape already defined; already consumed by Studio's own C# gates, but not by academy-brain
+- `backend/src/CourseDeveloper.Infrastructure/QualityGates/BoundaryCheckGate.cs` — the existing empty-list-means-UNVERIFIED behavior this step must not carry into the additive-union design
+- `vaults/Inst-Analysis/02_Areas/horus-university-egypt/Brand_Identity_Contract.md` and `.../institution-core/Brand_Identity_Contract.md` — real second/generic-institute config already produced by Studio's own vault sync, as a concrete non-Techno-Square example to design against
+- STEP 5's handoff (`docs/tickets/handoffs/step5-academy-brain-adapter.md`) — the `--root` externalization pattern this step extends
+- `academy-brain/scripts/swarm/generate_session.py`'s `BRAND`/`BRANDING_RULE`/`TATA_GUIDE` section — the asset-*path* half of branding STEP 5 already made root-relative; this step is the *rule-value* half STEP 5 explicitly deferred
+- `backend/src/CourseDeveloper.Core/Models/GenerationJob.cs` — confirm it currently carries no `Organization`/`OrganizationId` reference; this step must name the resolver that turns a job's project into an organization config snapshot (see Constraints)
+
+**Constraints:**
+- Keep every gate's `@register(...)` name and `GateResult` contract unchanged — only the hardcoded constants become parameters, not the check logic or algorithm. Specifically: `brand_palette.py` stays retired-only rejection (no allowlist enforcement) unless a separate, explicitly-authorized step adds an enforcement-policy field to `Organization.BrandPalette`.
+- Techno Square's current values are the default/fallback **only for a standalone/manual/legacy invocation path with no job-supplied org config** (e.g. running `generate_session.py` directly, or `academy-brain`'s own test suite). For a real Studio production `GenerationJob`, missing organization config must **fail closed** (job errors, does not silently fall back to Techno Square) — a multi-tenant job must never be silently graded against another institute's brand/language rules.
+- Config values must reach the gate through the same per-job mechanism STEP 5 established (subprocess argument/file), not a new network call or shared mutable global. Name the upstream resolver: `GenerationJob` → `CourseProject.OrganizationId` → `Organization` → serialized org-config snapshot written into the job payload at enqueue time (immutable per job — re-reading a live, possibly-since-edited `Organization` row on retry would break reproducibility).
+- Define the org-config file/payload's own schema and version (mirroring `contracts/generation-job/*.schema.json`), independent of the job-request contract version.
+
+**Scope lock — do NOT:**
+- Do not rewrite any gate's detection algorithm — only its constant sourcing. This explicitly includes: do not turn `brand_palette.py`'s retired-only check into an approved-colors allowlist.
+- Do not touch vault-root or session-id handling — STEP 5 already solved that; this step is rule-values only.
+- Do not redesign `Organization.cs`'s shape — its `BrandPalette`/`LanguagePolicy`/`BoundaryTerms` fields already fit for the retired-only/additive-union design above; use them as-is. (If a later requirement needs allowlist enforcement or a third script, that's a separately-authorized model change, not this step.)
+- Do not implement NBLM prompt-authoring (STEP 11) or vault-sync consolidation (STEP 10) in this step — unrelated scope.
+
+**Output:** `docs/tickets/handoffs/step12-multi-institute-gates.md` — the config-passing mechanism, the job→organization resolver, before/after for each gate touched, the `boundary_check.py` additive-union design and its reasoning, and a worked example using Horus University's real palette values.
+
+**Exit criteria:** `brand_palette.py` and `arabic_ratio.py` (both `TargetRatio` and `Tolerance`) read their values from per-job config, not module constants; Techno Square's existing values still pass unchanged when no override is given (standalone/legacy path only — production path fails closed on missing config); a dry run using Horus University's real retired colors (`#FF0000`, `#990000` per its Brand_Identity_Contract.md) correctly fails, and a dry run using Horus's approved colors correctly passes — proving the parameterization is real and not just plumbed-but-ignored, without requiring Techno Square's palette to fail under Horus's config (it should not, since the gate is retired-only, not an allowlist); a C# adapter test proves the exact organization snapshot reaches the per-job config file/payload unchanged.
+
+---
+
 ## GOAL
 
 CourseDeveloperStudio's frontend talks only to its own authenticated .NET backend (no silent demo fallback); its gate runner is a generic, DI-registered plugin system covering all 6 gate kinds; academy-brain lives inside the Studio monorepo as an internally-owned Python engine (DEC-004) behind a durable job queue and its own worker process, with credentials and artifacts under proper custody; Dr Mahmoud MVP's lesson-authoring flow lives inside Studio's frontend under one shared auth boundary, linked to Studio's core entities by real foreign keys, with one canonical, ownership-mapped database schema underneath all of it — and the entire customer-facing product is one linear, zero-configuration button sequence for every institute type, with a transformation receipt and plain-language blocking messages as the only additions to that sequence (DEC-005).
@@ -439,13 +483,14 @@ CourseDeveloperStudio's frontend talks only to its own authenticated .NET backen
 | 2 | system-architect | Complete, pending user approval to commit | `docs/tickets/handoffs/step2-schema-ownership.md` | 2026-09-04 |
 | 3 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step3-gate-registry.md` | 2026-09-04 |
 | 4 | backend-dev | Committed | `docs/tickets/handoffs/step4-generation-job-worker.md` | 2026-09-04 |
-| 5 | backend-dev + coder | Not started | | — |
+| 5 | backend-dev + coder | Code complete, live end-to-end run blocked (content + NotebookLM venv unavailable) | `docs/tickets/handoffs/step5-academy-brain-adapter.md` | 2026-09-04 |
 | 6 | devops-automator | Not started | | — |
 | 7 | frontend-developer | Not started | | — |
 | 8 | frontend-developer + backend-dev | Not started | | — |
 | 9 | system-architect | Not started | | — |
 | 10 | backend-dev | Not started | | — |
 | 11 | system-architect | Not started | | — |
+| 12 | backend-dev + coder | Not started | | — |
 
 ## Related
 

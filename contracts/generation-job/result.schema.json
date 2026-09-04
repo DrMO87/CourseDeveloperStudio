@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://courseDeveloperStudio/contracts/generation-job/result.schema.json",
+  "title": "GenerationJob result manifest — academy-brain.generate-session",
+  "description": "Shape of GenerationJobExecutionResult.ResultManifest on success for operation 'academy-brain.generate-session' (STEP 5). studioBuild.commitSha is the Studio repo commit CourseDeveloper.Worker ran under — per DEC-004 there is no separate academy-brain release to pin, so this replaces that idea. pedagogy is academy-brain's real pedagogy-coverage gate output (00-contracts/pedagogy.md §5), sourced by generate_session.pedagogy_summary() — never a guess — and is the DEC-005 transformation-summary evidence STEP 8's customer-facing receipt reads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "studioBuild", "sessionId", "exitCode", "pedagogy"],
+  "properties": {
+    "contractVersion": { "const": 1 },
+    "studioBuild": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commitSha"],
+      "properties": {
+        "commitSha": { "type": "string", "minLength": 7, "description": "Studio monorepo commit the worker/academy-brain subprocess ran under." }
+      }
+    },
+    "sessionId": { "type": "string", "pattern": "^L\\d+-s\\d+$" },
+    "exitCode": { "type": "integer", "description": "generate_session.py's process exit code. 0 = success (or a clean dry run). 2 = HardStop (a gate refused; see stderrTail)." },
+    "stdoutTail": { "type": "string", "description": "Last N lines of the subprocess's stdout, for operator diagnosis. Not the full log — that belongs to the worker's own log sink." },
+    "stderrTail": { "type": "string" },
+    "receiptPath": {
+      "type": ["string", "null"],
+      "description": "Path to the .production.yaml receipt generate_session.write_receipt() wrote, when live=true and the run succeeded. Null for a dry run."
+    },
+    "pedagogy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate", "verdict", "detail"],
+      "properties": {
+        "gate": { "const": "pedagogy-coverage" },
+        "verdict": { "enum": ["PASS", "FAIL", "UNVERIFIED"] },
+        "detail": { "type": "string" },
+        "evidence": { "type": "object" }
+      },
+      "description": "Real gates.REGISTRY['pedagogy-coverage'] output for sessionId's level. UNVERIFIED with a plain reason if that level has no pedagogy record yet (00-contracts/pedagogy.md §5) — never fabricated."
+    }
+  }
+}
