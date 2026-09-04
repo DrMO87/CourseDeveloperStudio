@@ -347,6 +347,76 @@ The worker's deployed image contains both `CourseDeveloper.Worker` and the Pytho
 
 ---
 
+## STEP 10 — backend-dev: canonical Obsidian vault sync
+
+**Owner:** backend-dev
+**Starts when:** STEP 5 handoff exists; if this step's asset handling reads through STEP 6's durable artifact-location contract, the final integration and exit test additionally require STEP 6. Coordinate with STEP 7 — do not treat STEP 10 as independent of it (see Constraints).
+
+**Task:** Dr Mahmoud (non-programmer, project owner) flagged that Studio's Obsidian vault structure is poor. Investigation found two separate defects, not one:
+
+1. **Two independent, uncoordinated vault writers exist.** `ObsidianVaultService.SyncSessionToVaultAsync` (the .NET method behind `ObsidianSyncController`) writes up to 4 flat Markdown files per session under `01_Projects/<project>/<session>/`, with no YAML frontmatter, no asset subfolder, no index/linking note. Separately, a Next.js route (`frontend/src/app/api/obsidian/sync/route.ts`) writes its own content into `02_Areas` and `03_Resources` under its own derived `VAULT_ROOT` — a second, independent serializer that may target a different vault root entirely. `ObsidianParaBrowser.tsx` tries the local Next.js filesystem route first and only falls back to the .NET backend, so the two paths compete rather than cooperate. `04_Archive` stays empty in the inspected paths.
+2. **`AgentOrchestrator` never actually calls the real sync.** It logs that synchronization occurred (`ARTIFACTS_GENERATED_AND_SYNCED`) without invoking `SyncSessionToVaultAsync` — a correctness bug independent of the structural weakness above.
+3. A separate, unused method on the same class (`WriteGeneratedCourseBundleAsync`) already serializes frontmatter correctly via `FrontmatterEnvelopeParser` — nothing calls it.
+
+This step must: pick exactly one canonical vault-writing implementation (decide .NET vs. Next.js, or split responsibility along an explicit, documented contract) and retire or delegate the other, rather than maintaining two independent serializers against potentially two vault roots; fix `AgentOrchestrator` to call the real sync instead of logging a false success; add real frontmatter (reuse the already-correct `FrontmatterEnvelopeParser`), a per-session asset subfolder, and an index/linking note; populate `02_Areas`/`03_Resources` with real content per a defined artifact-type → PARA-folder mapping (not filler content solely to make them non-empty); add path-containment validation and safe filename normalization for project/session/category names used in file paths; make re-sync idempotent and atomic with a defined collision/stale-file policy.
+
+**Mandatory reading:**
+- `backend/src/CourseDeveloper.Infrastructure/Obsidian/ObsidianVaultService.cs`, `FrontmatterEnvelopeParser.cs`, `IObsidianVaultService.cs`
+- `backend/src/CourseDeveloper.Api/Controllers/ObsidianSyncController.cs`
+- `backend/src/CourseDeveloper.Infrastructure/Agents/AgentOrchestrator.cs` — confirm the logged-vs-actual sync gap before changing it
+- `frontend/src/components/ObsidianParaBrowser.tsx`, `frontend/src/app/api/obsidian/sync/route.ts`, `frontend/src/lib/obsidianSync.ts` — the second, independent vault writer and its read-preference order
+- STEP 5's result contract and STEP 6's artifact-custody handoff (for asset sourcing)
+- STEP 7's handoff (frontend read path this step must not silently break)
+
+**Constraints:**
+- Exactly one component owns physical vault writes after this step; the other path is retired or delegates through the canonical one — do not leave two serializers live.
+- Frontmatter must carry stable organization/project/session/artifact identity, artifact type, source/provenance, content hash, and sync timestamp.
+- If consolidating the two writers requires changing `ObsidianSyncController`'s existing API/URL shape that STEP 7 already confirmed the frontend calls correctly, flag it as a small, explicitly named STEP-7-adjacent frontend follow-up rather than silently changing it.
+
+**Scope lock — do NOT:**
+- Do not touch academy-brain's own, separate vault.
+- Do not invent placeholder Area/Resource content solely to satisfy "non-empty" — populate only with real, sourced content per the defined mapping.
+- Do not implement STEP 11's prompt-authoring proposal in this step — unrelated scope.
+
+**Output:** `docs/tickets/handoffs/step10-vault-sync.md`
+
+**Exit criteria:** one canonical vault writer confirmed, the other retired or delegated; `AgentOrchestrator`'s sync claim matches a real sync call; a real synced session shows frontmatter-correct notes, populated (not filler) Areas/Resources, path-safe filenames; re-sync is idempotent; the browser still renders correctly (or the smallest possible flagged frontend change); acceptance tests cover first sync, repeat sync, updated content, assets, and unsafe paths.
+
+---
+
+## STEP 11 — system-architect: NBLM deck-prompt authoring — proposal only
+
+**Owner:** system-architect
+**Starts when:** STEP 5 handoff exists
+
+**Task:** Dr Mahmoud also flagged the prompts used to generate student decks via NotebookLM. Today, academy-brain does not AI-generate, improve, or semantically quality-check that prompt text. `new_course.py` copies a non-empty, hand-authored, course-level baseline template (`80-generation/nblm-student-deck-prompts.md`) into every new course; `generate_session.py`'s `parse_prompts`/`build_plan` only parse and upload that text as-is, appending one fixed, code-generated `evidence_clause` about image markers; its preflight only checks that uploads resolve and instructions are non-empty, not prompt quality. (`ENGINE.md`'s note that this file "exists nowhere" is stale — flag as a doc-drift finding and propose a one-line `ENGINE.md` correction regardless of which option below is chosen.)
+
+Per STEP 9's established pattern: compare, propose, do not implement — whether to bring AI into prompt authoring is a real quality/risk decision for the owner, not this step's to make. Propose 3 options at rising ambition/risk, each with a concrete before/after, risk, cost, and recommendation:
+- **(a)** Formalize the existing baseline into a validated, parameterized guided template — replace hardcoded fixed assumptions currently baked into the file (specific session duration, academy branding, specific course references) with explicit runtime/template fields. Cheap, safe, extends the existing copy-on-scaffold mechanism.
+- **(b)** Add deterministic structural/pedagogical pre-flight checks. Do not assume this trivially wires into `pedagogy_coverage.py`'s Bloom's-taxonomy gate — first map exactly which prompt properties that gate can validly assess (teaching content) versus what needs separate checks (parser section structure, audience, branding fields, duration, forbidden content, required sections).
+- **(c)** AI drafts/critiques the prompt text itself, human approves — needs explicit owner sign-off, model/provider choice, versioning and provenance, an audit record, and deterministic fallback behavior.
+
+**Mandatory reading:**
+- `D:\vault\academy-brain\80-generation\nblm-student-deck-prompts.md` — the current baseline itself, not just its description
+- `D:\vault\academy-brain\scripts\swarm\new_course.py` — `SCAFFOLD_FILES` / `_TEMPLATE-*` copy-on-scaffold pattern
+- `D:\vault\academy-brain\scripts\swarm\generate_session.py` — `parse_prompts`, `evidence_clause`, `build_plan`, `preflight`
+- `D:\vault\academy-brain\docs\ENGINE.md` — the gap table (note its staleness re: this file)
+
+**Constraints:**
+- Must not propose folding this into STEP 5's already-locked migration/adapter scope.
+- Must include versioning/provenance for whichever prompt controls a given generation job, so outputs stay reproducible.
+
+**Scope lock — do NOT:**
+- Do not implement any option in this step.
+- Do not modify the prompt file, `new_course.py`, or `generate_session.py`.
+- Do not treat this step's completion as authorization to build — an AI-authored prompt must never be used automatically without explicit owner approval and a deterministic fallback; this step proposes that boundary, it does not build it.
+
+**Output:** `docs/tickets/handoffs/step11-nblm-prompt-authoring.md` — 3-option comparison with recommendation, plus the `ENGINE.md` doc-drift note.
+
+**Exit criteria:** each option has a concrete before/after prompt example, risk, cost, and ownership/approval boundary; the user has an actionable recommendation to approve, not a restated "make prompts better."
+
+---
+
 ## GOAL
 
 CourseDeveloperStudio's frontend talks only to its own authenticated .NET backend (no silent demo fallback); its gate runner is a generic, DI-registered plugin system covering all 6 gate kinds; academy-brain lives inside the Studio monorepo as an internally-owned Python engine (DEC-004) behind a durable job queue and its own worker process, with credentials and artifacts under proper custody; Dr Mahmoud MVP's lesson-authoring flow lives inside Studio's frontend under one shared auth boundary, linked to Studio's core entities by real foreign keys, with one canonical, ownership-mapped database schema underneath all of it — and the entire customer-facing product is one linear, zero-configuration button sequence for every institute type, with a transformation receipt and plain-language blocking messages as the only additions to that sequence (DEC-005).
@@ -368,12 +438,14 @@ CourseDeveloperStudio's frontend talks only to its own authenticated .NET backen
 | 1 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step1-backend-auth-di.md` | 2026-09-04 |
 | 2 | system-architect | Complete, pending user approval to commit | `docs/tickets/handoffs/step2-schema-ownership.md` | 2026-09-04 |
 | 3 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step3-gate-registry.md` | 2026-09-04 |
-| 4 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step4-generation-job-worker.md` | 2026-09-04 |
+| 4 | backend-dev | Committed | `docs/tickets/handoffs/step4-generation-job-worker.md` | 2026-09-04 |
 | 5 | backend-dev + coder | Not started | | — |
 | 6 | devops-automator | Not started | | — |
 | 7 | frontend-developer | Not started | | — |
 | 8 | frontend-developer + backend-dev | Not started | | — |
 | 9 | system-architect | Not started | | — |
+| 10 | backend-dev | Not started | | — |
+| 11 | system-architect | Not started | | — |
 
 ## Related
 
