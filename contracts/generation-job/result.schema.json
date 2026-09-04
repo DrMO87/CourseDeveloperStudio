@@ -22,7 +22,31 @@
     "stderrTail": { "type": "string" },
     "receiptPath": {
       "type": ["string", "null"],
-      "description": "Path to the .production.yaml receipt generate_session.write_receipt() wrote, when live=true and the run succeeded. Null for a dry run."
+      "description": "Path to the .production.yaml receipt generate_session.write_receipt() wrote, when live=true and the run succeeded. Null for a dry run. This is a path on the worker's local disk — see artifactStorage for the Studio-visible, durable copy."
+    },
+    "artifactStorage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bucket", "path", "sha256", "sizeBytes"],
+      "description": "STEP 6: where the receipt at receiptPath was durably uploaded (Supabase Storage), so it survives past the worker's own local job workspace. Absent for a dry run and absent when the worker has no durable storage configured (e.g. local dev) — receiptPath is then the only location.",
+      "properties": {
+        "bucket": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1, "description": "Object key within the bucket, e.g. '<jobId>/<filename>'." },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sizeBytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "courseBundleStorage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bucket", "path", "sha256", "sizeBytes"],
+      "description": "STEP 6: where the zipped generated course output (VAULT/75-bundle/<sessionId> — the actual slides/assets, distinct from the small receipt file) was durably uploaded. Absent for a dry run, when the bundle directory doesn't exist, or when durable storage isn't configured.",
+      "properties": {
+        "bucket": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1, "description": "Object key within the bucket, e.g. '<jobId>/<sessionId>-<jobId>.zip'." },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sizeBytes": { "type": "integer", "minimum": 0 }
+      }
     },
     "pedagogy": {
       "type": "object",

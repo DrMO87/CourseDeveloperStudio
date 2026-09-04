@@ -70,7 +70,9 @@ public class AcademyBrainSubprocessExecutorTests
                 script,
                 "python",
                 "abcdef0",
-                TimeSpan.FromMilliseconds(10));
+                TimeSpan.FromMilliseconds(10),
+                new FakeNotebookLmCredentialResolver(null),
+                new FakeArtifactStorage());
             var job = MakeDryRunJob(pidFile);
             using var stoppingCts = new CancellationTokenSource();
             var execution = executor.ExecuteAsync(job, () => Task.FromResult(false), stoppingCts.Token);
@@ -106,6 +108,46 @@ public class AcademyBrainSubprocessExecutorTests
         },
     };
 
+    private static CourseDeveloper.Core.Models.GenerationJob MakeLiveJob(string courseVaultRoot, string accountKey) => new()
+    {
+        Id = Guid.NewGuid(),
+        Operation = "academy-brain.generate-session",
+        NotebookLmAccountKey = accountKey,
+        Payload = new Dictionary<string, object>
+        {
+            ["contractVersion"] = 1,
+            ["sessionId"] = "L1-s1",
+            ["courseVaultRoot"] = courseVaultRoot,
+            ["live"] = true,
+        },
+    };
+
+    private sealed class FakeNotebookLmCredentialResolver : INotebookLmCredentialResolver
+    {
+        private readonly string? _value;
+        public string? LastRequestedAccountKey { get; private set; }
+        public FakeNotebookLmCredentialResolver(string? value) => _value = value;
+
+        public Task<string?> ResolveAsync(string accountKey, CancellationToken cancellationToken)
+        {
+            LastRequestedAccountKey = accountKey;
+            return Task.FromResult(_value);
+        }
+    }
+
+    private sealed class FakeArtifactStorage : IGenerationArtifactStorage
+    {
+        private readonly UploadedArtifact? _result;
+        public List<(Guid JobId, string LocalFilePath)> Calls { get; } = new();
+        public FakeArtifactStorage(UploadedArtifact? result = null) => _result = result;
+
+        public Task<UploadedArtifact?> UploadAsync(Guid jobId, string localFilePath, CancellationToken cancellationToken)
+        {
+            Calls.Add((jobId, localFilePath));
+            return Task.FromResult(_result);
+        }
+    }
+
     [Fact]
     public async Task ExecuteAsync_HardStopExitCode_ThrowsNonRetryable()
     {
@@ -120,7 +162,9 @@ public class AcademyBrainSubprocessExecutorTests
                 script,
                 "python",
                 "abcdef0",
-                TimeSpan.FromMilliseconds(10));
+                TimeSpan.FromMilliseconds(10),
+                new FakeNotebookLmCredentialResolver(null),
+                new FakeArtifactStorage());
             var job = MakeDryRunJob(tempDir.FullName);
 
             await Assert.ThrowsAsync<NonRetryableJobExecutionException>(
@@ -146,12 +190,167 @@ public class AcademyBrainSubprocessExecutorTests
                 script,
                 "python",
                 "abcdef0",
-                TimeSpan.FromMilliseconds(10));
+                TimeSpan.FromMilliseconds(10),
+                new FakeNotebookLmCredentialResolver(null),
+                new FakeArtifactStorage());
             var job = MakeDryRunJob(tempDir.FullName);
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(
                 () => executor.ExecuteAsync(job, () => Task.FromResult(false), CancellationToken.None));
             Assert.IsNotType<NonRetryableJobExecutionException>(ex);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LiveRun_InjectsResolvedCredentialAsEnvVar()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("academy-brain-executor-live-");
+        try
+        {
+            var script = Path.Combine(tempDir.FullName, "echo_env.py");
+            var outFile = Path.Combine(tempDir.FullName, "env.out");
+            await File.WriteAllTextAsync(
+                script,
+                "import os, sys, json\n" +
+                "with open(sys.argv[3], 'w') as f:\n" +
+                "    f.write(os.environ.get('NOTEBOOKLM_AUTH_JSON', ''))\n" +
+                "print('RESULT_JSON:' + json.dumps({'sessionId': 'L1-s1', 'receiptPath': None, " +
+                "'pedagogy': {'gate': 'pedagogy-coverage', 'verdict': 'UNVERIFIED', 'detail': 'test'}}))\n");
+
+            var resolver = new FakeNotebookLmCredentialResolver("secret-json-blob");
+            var executor = new AcademyBrainSubprocessExecutor(
+                NullLogger<AcademyBrainSubprocessExecutor>.Instance,
+                script,
+                "python",
+                "abcdef0",
+                TimeSpan.FromMilliseconds(10),
+                resolver,
+                new FakeArtifactStorage());
+            var job = MakeLiveJob(outFile, "acct-1");
+
+            var result = await executor.ExecuteAsync(job, () => Task.FromResult(false), CancellationToken.None);
+
+            Assert.False(result.Canceled);
+            Assert.Equal("acct-1", resolver.LastRequestedAccountKey);
+            Assert.Equal("secret-json-blob", await File.ReadAllTextAsync(outFile));
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LiveRun_NoCredentialProvisioned_ThrowsNonRetryable()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("academy-brain-executor-nocred-");
+        try
+        {
+            var script = Path.Combine(tempDir.FullName, "unused.py");
+            await File.WriteAllTextAsync(script, "import sys\nsys.exit(0)\n");
+
+            var executor = new AcademyBrainSubprocessExecutor(
+                NullLogger<AcademyBrainSubprocessExecutor>.Instance,
+                script,
+                "python",
+                "abcdef0",
+                TimeSpan.FromMilliseconds(10),
+                new FakeNotebookLmCredentialResolver(null),
+                new FakeArtifactStorage());
+            var job = MakeLiveJob(Path.Combine(tempDir.FullName, "unused.out"), "acct-missing");
+
+            await Assert.ThrowsAsync<NonRetryableJobExecutionException>(
+                () => executor.ExecuteAsync(job, () => Task.FromResult(false), CancellationToken.None));
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LiveRunWithReceipt_RecordsArtifactStorageWhenConfigured()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("academy-brain-executor-artifact-");
+        try
+        {
+            var script = Path.Combine(tempDir.FullName, "make_receipt.py");
+            await File.WriteAllTextAsync(
+                script,
+                "import sys, json, os\n" +
+                "receipt = os.path.join(sys.argv[3], 'receipt.yaml')\n" +
+                "with open(receipt, 'w') as f:\n" +
+                "    f.write('dummy: true\\n')\n" +
+                "print('RESULT_JSON:' + json.dumps({'sessionId': 'L1-s1', 'receiptPath': receipt, " +
+                "'pedagogy': {'gate': 'pedagogy-coverage', 'verdict': 'PASS', 'detail': 'ok'}}))\n");
+
+            var uploaded = new UploadedArtifact("course-artifacts", "job-id/receipt.yaml", new string('a', 64), 11);
+            var executor = new AcademyBrainSubprocessExecutor(
+                NullLogger<AcademyBrainSubprocessExecutor>.Instance,
+                script,
+                "python",
+                "abcdef0",
+                TimeSpan.FromMilliseconds(10),
+                new FakeNotebookLmCredentialResolver("secret-json-blob"),
+                new FakeArtifactStorage(uploaded));
+            var job = MakeLiveJob(tempDir.FullName, "acct-1");
+
+            var result = await executor.ExecuteAsync(job, () => Task.FromResult(false), CancellationToken.None);
+
+            var stored = Assert.IsType<Dictionary<string, object>>(result.ResultManifest["artifactStorage"]);
+            Assert.Equal("course-artifacts", stored["bucket"]);
+            Assert.Equal("job-id/receipt.yaml", stored["path"]);
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LiveRunWithCourseBundle_UploadsZippedBundleDirectorySeparatelyFromReceipt()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("academy-brain-executor-bundle-");
+        try
+        {
+            var bundleDir = Path.Combine(tempDir.FullName, "75-bundle", "L1-s1");
+            Directory.CreateDirectory(bundleDir);
+            await File.WriteAllTextAsync(Path.Combine(bundleDir, "slide1.png"), "fake-slide-bytes");
+
+            var script = Path.Combine(tempDir.FullName, "make_receipt.py");
+            await File.WriteAllTextAsync(
+                script,
+                "import sys, json, os\n" +
+                "receipt = os.path.join(sys.argv[3], 'receipt.yaml')\n" +
+                "with open(receipt, 'w') as f:\n" +
+                "    f.write('dummy: true\\n')\n" +
+                "print('RESULT_JSON:' + json.dumps({'sessionId': 'L1-s1', 'receiptPath': receipt, " +
+                "'pedagogy': {'gate': 'pedagogy-coverage', 'verdict': 'PASS', 'detail': 'ok'}}))\n");
+
+            var uploaded = new UploadedArtifact("course-artifacts", "job-id/x", new string('a', 64), 11);
+            var artifactStorage = new FakeArtifactStorage(uploaded);
+            var executor = new AcademyBrainSubprocessExecutor(
+                NullLogger<AcademyBrainSubprocessExecutor>.Instance,
+                script,
+                "python",
+                "abcdef0",
+                TimeSpan.FromMilliseconds(10),
+                new FakeNotebookLmCredentialResolver("secret-json-blob"),
+                artifactStorage);
+            var job = MakeLiveJob(tempDir.FullName, "acct-1");
+
+            var result = await executor.ExecuteAsync(job, () => Task.FromResult(false), CancellationToken.None);
+
+            Assert.True(result.ResultManifest.ContainsKey("artifactStorage"));
+            Assert.True(result.ResultManifest.ContainsKey("courseBundleStorage"));
+            Assert.Equal(2, artifactStorage.Calls.Count);
+            Assert.EndsWith("receipt.yaml", artifactStorage.Calls[0].LocalFilePath);
+            Assert.EndsWith(".zip", artifactStorage.Calls[1].LocalFilePath);
+            Assert.False(File.Exists(artifactStorage.Calls[1].LocalFilePath));
         }
         finally
         {

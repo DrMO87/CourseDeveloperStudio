@@ -3,6 +3,8 @@ namespace CourseDeveloper.Worker;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -26,13 +28,20 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
 
     private readonly ILogger<AcademyBrainSubprocessExecutor> _logger;
     private readonly string _scriptPath;
-    private readonly string _dryRunPythonExecutable;
+    private readonly string _pythonExecutable;
     private readonly string _studioCommitSha;
     private readonly TimeSpan _cancelPollInterval;
+    private readonly INotebookLmCredentialResolver _credentialResolver;
+    private readonly IGenerationArtifactStorage _artifactStorage;
 
-    public AcademyBrainSubprocessExecutor(ILogger<AcademyBrainSubprocessExecutor> logger)
+    public AcademyBrainSubprocessExecutor(
+        ILogger<AcademyBrainSubprocessExecutor> logger,
+        INotebookLmCredentialResolver credentialResolver,
+        IGenerationArtifactStorage artifactStorage)
     {
         _logger = logger;
+        _credentialResolver = credentialResolver;
+        _artifactStorage = artifactStorage;
 
         // Fail closed rather than guess a relative path across dev/CI/deploy layouts — STEP 6
         // (devops-automator) sets this explicitly in the worker's runtime environment.
@@ -41,7 +50,12 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
                 "ACADEMY_BRAIN_SCRIPT_PATH is not set. It must point at " +
                 "<repo>/academy-brain/scripts/swarm/generate_session.py.");
 
-        _dryRunPythonExecutable = Environment.GetEnvironmentVariable("GENERATION_WORKER_PYTHON_EXECUTABLE") ?? "python";
+        // STEP 6 bundles exactly one Python runtime into the worker image (DEC-004) — every
+        // job, live or dry-run, uses that same interpreter. NotebookLM accounts no longer
+        // differ by interpreter path (a per-account venv never made sense once one image
+        // serves every account); they differ by which credential is injected as
+        // NOTEBOOKLM_AUTH_JSON at execution time (see _credentialResolver below).
+        _pythonExecutable = Environment.GetEnvironmentVariable("GENERATION_WORKER_PYTHON_EXECUTABLE") ?? "python";
         _studioCommitSha = Environment.GetEnvironmentVariable("STUDIO_COMMIT_SHA") ?? "unknown";
         _cancelPollInterval = TimeSpan.FromSeconds(2);
     }
@@ -49,15 +63,19 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
     internal AcademyBrainSubprocessExecutor(
         ILogger<AcademyBrainSubprocessExecutor> logger,
         string scriptPath,
-        string dryRunPythonExecutable,
+        string pythonExecutable,
         string studioCommitSha,
-        TimeSpan cancelPollInterval)
+        TimeSpan cancelPollInterval,
+        INotebookLmCredentialResolver credentialResolver,
+        IGenerationArtifactStorage artifactStorage)
     {
         _logger = logger;
         _scriptPath = scriptPath;
-        _dryRunPythonExecutable = dryRunPythonExecutable;
+        _pythonExecutable = pythonExecutable;
         _studioCommitSha = studioCommitSha;
         _cancelPollInterval = cancelPollInterval;
+        _credentialResolver = credentialResolver;
+        _artifactStorage = artifactStorage;
     }
 
     public async Task<GenerationJobExecutionResult> ExecuteAsync(GenerationJob job, Func<Task<bool>> isCancelRequested, CancellationToken stoppingToken)
@@ -80,17 +98,19 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         var courseVaultRoot = ReadString(payload, "courseVaultRoot") ?? throw new InvalidOperationException($"Job {job.Id} payload is missing 'courseVaultRoot'.");
         var live = ReadBool(payload, "live") ?? false;
 
-        string interpreter;
+        // STEP 6: resolved at execution time, not read from the enqueue-time payload — see
+        // NotebookLmCredentialResolver's doc comment for why that matters for rotation.
+        string? notebookLmAuthJson = null;
         if (live)
         {
-            interpreter = ReadString(payload, "pythonExecutable")
-                ?? throw new InvalidOperationException(
-                    $"Job {job.Id} has live=true but no 'pythonExecutable' — a live run needs the interpreter " +
-                    "that has the notebooklm package and this job's NotebookLM account session.");
-        }
-        else
-        {
-            interpreter = _dryRunPythonExecutable;
+            notebookLmAuthJson = await _credentialResolver.ResolveAsync(job.NotebookLmAccountKey, stoppingToken);
+            if (string.IsNullOrEmpty(notebookLmAuthJson))
+            {
+                throw new NonRetryableJobExecutionException(
+                    $"Job {job.Id}: live=true but no NotebookLM credential is provisioned for account " +
+                    $"'{job.NotebookLmAccountKey}' (see public.notebooklm_auth_json in database/schema.sql). " +
+                    "Provision it with vault.create_secret(...) before retrying.");
+            }
         }
 
         var arguments = new List<string> { _scriptPath, sessionId, "--root", courseVaultRoot };
@@ -101,7 +121,7 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = interpreter,
+            FileName = _pythonExecutable,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -111,8 +131,12 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         {
             startInfo.ArgumentList.Add(arg);
         }
+        if (notebookLmAuthJson is not null)
+        {
+            startInfo.Environment["NOTEBOOKLM_AUTH_JSON"] = notebookLmAuthJson;
+        }
 
-        _logger.LogInformation("Job {JobId}: launching {Interpreter} {Args}", job.Id, interpreter, string.Join(' ', arguments));
+        _logger.LogInformation("Job {JobId}: launching {Interpreter} {Args}", job.Id, _pythonExecutable, string.Join(' ', arguments));
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         var stdout = new StringBuilder();
@@ -190,6 +214,73 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         // NpgsqlGenerationJobRepository serializes it through System.Text.Json as JSON null.
         manifest["receiptPath"] = resultLine.ReceiptPath!;
         manifest["pedagogy"] = resultLine.Pedagogy;
+
+        // STEP 6: land the artifact somewhere Studio-visible, not just this worker's local
+        // disk. Only meaningful when a receipt actually exists (a live run) — a dry run never
+        // has one. Storage being unconfigured (local dev) is not an error; a real upload
+        // failure is (GenerationArtifactStorage throws, which surfaces as a retryable job
+        // failure — a storage hiccup is worth retrying, unlike a HardStop).
+        if (resultLine.ReceiptPath is not null)
+        {
+            var uploaded = await _artifactStorage.UploadAsync(job.Id, resultLine.ReceiptPath, stoppingToken);
+            if (uploaded is not null)
+            {
+                manifest["artifactStorage"] = new Dictionary<string, object>
+                {
+                    ["bucket"] = uploaded.Bucket,
+                    ["path"] = uploaded.StoragePath,
+                    ["sha256"] = uploaded.Sha256,
+                    ["sizeBytes"] = uploaded.SizeBytes,
+                };
+            }
+        }
+
+        // STEP 6 (fixed after review): the receipt above is a small status file — Codex's
+        // review caught that generate_session's actual generated content (slides/assets)
+        // lives in a separate directory academy-brain writes independently
+        // (VAULT/75-bundle/<sessionId>, see generate_session.py's write_receipt/_demo), which
+        // was never getting durably stored. Zip that directory and upload it too, so a live
+        // run's real output survives past this worker's local disk, not just its receipt.
+        if (live)
+        {
+            var bundleDir = Path.Combine(courseVaultRoot, "75-bundle", sessionId);
+            if (Directory.Exists(bundleDir))
+            {
+                var zipPath = Path.Combine(Path.GetTempPath(), $"{sessionId}-{job.Id:N}.zip");
+                try
+                {
+                    if (File.Exists(zipPath))
+                    {
+                        File.Delete(zipPath);
+                    }
+                    ZipFile.CreateFromDirectory(bundleDir, zipPath);
+                    var uploadedBundle = await _artifactStorage.UploadAsync(job.Id, zipPath, stoppingToken);
+                    if (uploadedBundle is not null)
+                    {
+                        manifest["courseBundleStorage"] = new Dictionary<string, object>
+                        {
+                            ["bucket"] = uploadedBundle.Bucket,
+                            ["path"] = uploadedBundle.StoragePath,
+                            ["sha256"] = uploadedBundle.Sha256,
+                            ["sizeBytes"] = uploadedBundle.SizeBytes,
+                        };
+                    }
+                }
+                finally
+                {
+                    if (File.Exists(zipPath))
+                    {
+                        File.Delete(zipPath);
+                    }
+                }
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Job {JobId}: live run succeeded but bundle directory {BundleDir} doesn't exist — no course output uploaded.",
+                    job.Id, bundleDir);
+            }
+        }
 
         return new GenerationJobExecutionResult(Canceled: false, ResultManifest: manifest);
     }

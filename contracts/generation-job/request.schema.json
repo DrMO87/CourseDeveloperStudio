@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://courseDeveloperStudio/contracts/generation-job/request.schema.json",
   "title": "GenerationJob request payload — academy-brain.generate-session",
-  "description": "Shape of GenerationJob.Payload for operation 'academy-brain.generate-session' (STEP 5). contractVersion is this schema's own version — it is NOT an academy-brain release number (DEC-004 retired those) and it is NOT the Studio build that executes the job (see result.schema.json's studioBuild). Every value here is an execution-boundary value the CourseDeveloper.Worker subprocess adapter passes to generate_session.py's --root; none of it is end-user-configured (DEC-005 — the API derives courseVaultRoot and pythonExecutable from the project's Organization/CourseProject config).",
+  "description": "Shape of GenerationJob.Payload for operation 'academy-brain.generate-session' (STEP 5). contractVersion is this schema's own version — it is NOT an academy-brain release number (DEC-004 retired those) and it is NOT the Studio build that executes the job (see result.schema.json's studioBuild). Every value here is an execution-boundary value the CourseDeveloper.Worker subprocess adapter passes to generate_session.py's --root; none of it is end-user-configured (DEC-005 — the API derives courseVaultRoot from the project's Organization/CourseProject config). As of STEP 6, the Python interpreter is a fixed worker-image value (GENERATION_WORKER_PYTHON_EXECUTABLE), not part of this payload — see generation_job.notebooklm_account_key (STEP 4) and public.notebooklm_auth_json (database/schema.sql) for how a live run's NotebookLM credential is resolved instead.",
   "type": "object",
   "additionalProperties": false,
   "required": ["contractVersion", "sessionId", "courseVaultRoot", "live"],
@@ -24,12 +24,7 @@
     "live": {
       "type": "boolean",
       "default": false,
-      "description": "false = dry run (plan printed, nothing uploaded, no NotebookLM quota spent). true = a real generation run; requires pythonExecutable."
-    },
-    "pythonExecutable": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Absolute path to the Python interpreter with the notebooklm package and stored NotebookLM session for this job's notebooklm_account_key (see generation_job.notebooklm_account_key, STEP 4). Required when live is true; ignored for dry runs. This IS the NotebookLM credential reference this step externalizes — academy-brain's own source never hardcodes it."
+      "description": "false = dry run (plan printed, nothing uploaded, no NotebookLM quota spent). true = a real generation run; requires a NotebookLM credential to already be provisioned in Supabase Vault for this job's notebooklm_account_key (STEP 6) — the worker looks it up at execution time, not from this payload."
     }
   }
 }

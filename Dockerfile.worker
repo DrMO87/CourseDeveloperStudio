@@ -1,0 +1,47 @@
+# CourseDeveloper.Worker image (STEP 6) — bundles the .NET worker AND the Python runtime +
+# academy-brain code from this exact repo commit into one image (DEC-004: no separate
+# academy-brain release to pin), replacing the machine-specific dev venv path
+# AcademyBrainSubprocessExecutor previously depended on.
+#
+# Build from the REPO ROOT (needs both backend/ and academy-brain/ in its context):
+#   docker build -f Dockerfile.worker -t course-developer-worker .
+
+# Stage 1: .NET build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS dotnet-build
+WORKDIR /source
+COPY backend/CourseDeveloper.sln .
+COPY backend/src/CourseDeveloper.Core/CourseDeveloper.Core.csproj src/CourseDeveloper.Core/
+COPY backend/src/CourseDeveloper.Infrastructure/CourseDeveloper.Infrastructure.csproj src/CourseDeveloper.Infrastructure/
+COPY backend/src/CourseDeveloper.Api/CourseDeveloper.Api.csproj src/CourseDeveloper.Api/
+COPY backend/src/CourseDeveloper.Worker/CourseDeveloper.Worker.csproj src/CourseDeveloper.Worker/
+COPY backend/tests/CourseDeveloper.UnitTests/CourseDeveloper.UnitTests.csproj tests/CourseDeveloper.UnitTests/
+RUN dotnet restore src/CourseDeveloper.Worker/CourseDeveloper.Worker.csproj
+COPY backend/src/ src/
+WORKDIR /source/src/CourseDeveloper.Worker
+RUN dotnet publish -c Release -o /app/publish --no-restore
+
+# Stage 2: final runtime — .NET worker + a Python venv holding academy-brain's dependencies,
+# built via uv from this exact commit's academy-brain/pyproject.toml + uv.lock (the same
+# lockfile local dev already uses — no separate dependency resolution to keep in sync).
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-venv curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+WORKDIR /academy-brain
+COPY academy-brain/pyproject.toml academy-brain/uv.lock ./
+RUN uv sync --frozen --no-dev --python python3
+COPY academy-brain/ .
+
+WORKDIR /app
+COPY --from=dotnet-build /app/publish .
+
+ENV ACADEMY_BRAIN_SCRIPT_PATH=/academy-brain/scripts/swarm/generate_session.py \
+    GENERATION_WORKER_PYTHON_EXECUTABLE=/academy-brain/.venv/bin/python
+
+ARG STUDIO_COMMIT_SHA=unknown
+ENV STUDIO_COMMIT_SHA=${STUDIO_COMMIT_SHA}
+
+ENTRYPOINT ["dotnet", "CourseDeveloper.Worker.dll"]

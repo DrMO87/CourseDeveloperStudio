@@ -360,3 +360,41 @@ grant usage on schema public to generation_worker;
 grant usage on type public.generation_job_status to generation_worker;
 grant select, insert, update, delete on public.generation_job to generation_worker;
 grant select, insert, update, delete on public.generation_job_event to generation_worker;
+
+-- 14. NotebookLM credential store (STEP 6) — reuses Supabase's built-in Vault
+-- (pgsodium-encrypted secrets in Postgres) instead of introducing a new secret-manager
+-- vendor: Studio's existing infrastructure is already Supabase, and generation_worker is
+-- already connected to this same Postgres instance for the job queue. On Supabase Cloud the
+-- `vault` schema/extension is already enabled; the guard below only matters for a
+-- from-scratch local/self-hosted Postgres, where it silently no-ops without the privilege.
+do $$
+begin
+    if not exists (select from pg_extension where extname = 'supabase_vault') then
+        create extension supabase_vault;
+    end if;
+exception when insufficient_privilege then
+    raise notice 'supabase_vault extension not created (insufficient privilege) — assuming it is already enabled by the Supabase platform.';
+end
+$$;
+
+-- Each NotebookLM account's credential (the JSON generate_session.py's subprocess reads via
+-- its own NOTEBOOKLM_AUTH_JSON env var) is stored as a Vault secret named
+-- 'notebooklm:<account_key>' — the secret's own `name` column IS the account-key lookup, so
+-- no separate mapping table is needed. Provisioning a credential is an out-of-band
+-- `select vault.create_secret(...)` call (same convention as studio_api/generation_worker's
+-- passwords above), never a value this schema or the app writes.
+create or replace function public.notebooklm_auth_json(p_account_key text)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+    select decrypted_secret
+    from vault.decrypted_secrets
+    where name = 'notebooklm:' || p_account_key
+    limit 1
+$$;
+
+revoke all on function public.notebooklm_auth_json(text) from public;
+grant execute on function public.notebooklm_auth_json(text) to generation_worker;

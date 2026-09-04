@@ -9,6 +9,12 @@ dependencies = [
     "pymupdf>=1.24",
     "python-docx>=1.1.0",
     "PyYAML>=6.0",
+    # STEP 6: generate_session.py imports NotebookLMClient directly (run_live) — was never
+    # declared, so a fresh install broke at import time on any machine other than the one
+    # dev venv that happened to have it. No [browser] extra: the worker never performs an
+    # interactive `nlm login`, only reads a pre-authenticated NOTEBOOKLM_AUTH_JSON, so the
+    # Playwright/Chromium the extra pulls in is not needed here.
+    "notebooklm-py>=0.7.3",
 ]
 
 [dependency-groups]

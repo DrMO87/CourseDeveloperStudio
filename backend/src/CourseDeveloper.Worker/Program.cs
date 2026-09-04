@@ -21,6 +21,8 @@ builder.Services.AddSingleton(_ =>
 });
 
 builder.Services.AddSingleton<IGenerationJobRepository, NpgsqlGenerationJobRepository>();
+builder.Services.AddSingleton<INotebookLmCredentialResolver, NotebookLmCredentialResolver>();
+builder.Services.AddHttpClient<IGenerationArtifactStorage, GenerationArtifactStorage>();
 builder.Services.AddSingleton<IGenerationJobExecutor, AcademyBrainSubprocessExecutor>();
 builder.Services.AddHostedService<GenerationJobPollingService>();
 
