@@ -31,8 +31,7 @@ public static class FrontmatterEnvelopeParser
         }
 
         var yamlContent = parts[1];
-        var bodyContent = parts[2].TrimStart('', '
-');
+        var bodyContent = parts[2].TrimStart('\r', '\n');
 
         try
         {

@@ -17,7 +17,7 @@ public class McpToolDispatcher
             case "query_source_catalog":
                 return Task.FromResult($"[MCP Tool Result: Sourced catalog claim for {arguments.GetValueOrDefault("topic")}]");
             case "validate_asset_sha256":
-                return Task.FromResult("{"valid": true, "sha256": "match"}");
+                return Task.FromResult("{\"valid\": true, \"sha256\": \"match\"}");
             default:
                 return Task.FromResult($"[MCP Tool Result: Executed {toolName}]");
         }
