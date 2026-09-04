@@ -324,13 +324,15 @@ CourseDeveloperStudio's frontend talks only to its own authenticated .NET backen
 | # | Step | Raised by | Date | The blocker | Resolution |
 |---|---|---|---|---|---|
 | 1 | STEP 1 | assistant | 2026-09-04 | A full solution `dotnet build` can't go green until STEP 3 lands — `GateRunnerService.cs` writes `QualityReceipt` properties that don't exist on the model (the exact defect STEP 3 is scoped to fix), and it lives in the same `CourseDeveloper.Infrastructure` project STEP 1's own code builds against. STEP 1's own changes introduce zero new errors; confirmed by isolating this exact error set against STEP 3's own citation. | Not blocking — informational. STEP 1 is otherwise complete; STEP 3 (already fully scoped, independent, allowed to run parallel per STEP 3's own "Starts when") resolves this when it lands. See `docs/tickets/handoffs/step1-backend-auth-di.md` for the full build trace. |
+| 2 | STEP 2 | system-architect | 2026-09-04 | Checked configurations target separate Supabase projects (`jbjfafyjqdjmzmdggzha` vs. Studio's checked-in default `gjxhfyfonjdcaimxjipp`); STEP 8 must first confirm the deployed refs. If they differ as configured, the `WorksheetProject.sessionId → course_sessions.id` FK is physically impossible until both schemas live in one database. | Open: the user must approve which project is canonical and the cutover/retirement direction; the binding decisions require one database but do not choose the survivor. STEP 8 must then sequence consolidation/data transfer → approved `sessionId` reconciliation and zero-orphan validation → FK. |
+| 3 | STEP 2 | system-architect | 2026-09-04 | `.NET` backend uses one shared data source and opens repository connections without propagating the validated JWT identity; the deployed connection role is not visible in source. RLS ownership policies therefore either can be bypassed by a privileged/`BYPASSRLS` role or cannot resolve `auth.uid()` under a non-bypass role. | Decided in `docs/tickets/handoffs/step2-schema-ownership.md`: use a narrowly privileged authenticator role that can reach only `authenticated`, and set the role plus parameterized transaction-local JWT claims from the validated `sub` on the same connection/transaction as every protected query. Implementation is not yet assigned to a step — recommend STEP 4. |
 
 ## Step Ledger
 
 | Step | Owner | Status | Handoff artifact | Date |
 |---|---|---|---|---|
 | 1 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step1-backend-auth-di.md` | 2026-09-04 |
-| 2 | system-architect | Not started | | — |
+| 2 | system-architect | Complete, pending user approval to commit | `docs/tickets/handoffs/step2-schema-ownership.md` | 2026-09-04 |
 | 3 | backend-dev | Not started | | — |
 | 4 | backend-dev | Not started | | — |
 | 5 | backend-dev + coder | Not started | | — |
