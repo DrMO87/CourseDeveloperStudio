@@ -44,13 +44,17 @@ def register(name: str):
 
 
 from swarm.gates import (  # noqa: E402,F401
+    approval_decision,
     arabic_ratio,
     boundary_check,
     brand_palette,
     cite_filter,
+    critique_lane,
     digest_synthesis,
+    patch_adjudication,
     pedagogy_coverage,
     provenance_map,
     receipt_claims,
+    refutation_challenge,
     research_tasks,
 )

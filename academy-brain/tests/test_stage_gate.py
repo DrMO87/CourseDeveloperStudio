@@ -1,4 +1,6 @@
 import datetime as dt
+import hashlib
+import json
 
 import pytest
 import yaml
@@ -71,17 +73,128 @@ PROVENANCE_CONTENT = yaml.safe_dump(
         ],
     }
 )
+# STEP 9 R5-R8: critique/patch/refuted/approved gained the same treatment.
+# "I1" (raised by lane "codex", severity high, citing "C1") flows through:
+# critique -> patch (applies it) -> refuted (challenges it) -> approved
+# (binds to the real current provenance/refuted bytes).
+CRITIQUE_LANES = {
+    "codex": {
+        "lane": "codex",
+        "input_hash": "sha256:fixture-draft",
+        "checklist": ["source boundaries"],
+        "issues": [
+            {
+                "id": "I1",
+                "severity": "high",
+                "loc": "10-digest/L1-s1.md:1",
+                "explanation": "fixture issue",
+                "cites": ["C1"],
+            }
+        ],
+    },
+    "hermes": {
+        "lane": "hermes",
+        "input_hash": "sha256:fixture-draft",
+        "checklist": ["source boundaries"],
+        "reviewed_no_issues": True,
+        "issues": [],
+    },
+    "opencode": {
+        "lane": "opencode",
+        "input_hash": "sha256:fixture-draft",
+        "checklist": ["source boundaries"],
+        "reviewed_no_issues": True,
+        "issues": [],
+    },
+}
+PATCH_CONTENT = (
+    "# Patch\n\n```yaml\n"
+    + yaml.safe_dump(
+        {
+            "kind": "patch-adjudication",
+            "revision": "L1-s1-patch-r1",
+            "entries": [
+                {
+                    "issue_id": "I1",
+                    "disposition": "applied",
+                    "old_text": "four",
+                    "new_text": "three",
+                    "rationale": "fixture rationale",
+                }
+            ],
+        }
+    )
+    + "```\n"
+)
+REFUTED_CONTENT = (
+    "# Refutation\n\n```yaml\n"
+    + yaml.safe_dump(
+        {
+            "kind": "refutation-record",
+            "reviewer": "opencode",
+            "no_high_severity_patches": False,
+            "challenges": [
+                {
+                    "issue_id": "I1",
+                    "challenged_assertion": "fixture assertion",
+                    "reasoning": "fixture reasoning",
+                    "result": "survived",
+                }
+            ],
+        }
+    )
+    + "```\n"
+)
 _STRUCTURED_CONTENT = {
     "receipts": RECEIPTS_CONTENT,
     "research": RESEARCH_CONTENT,
     "digest": DIGEST_CONTENT,
     "provenance": PROVENANCE_CONTENT,
+    "patch": PATCH_CONTENT,
+    "refuted": REFUTED_CONTENT,
 }
+
+
+def _write_critique_lanes(vault, sid, lanes=None):
+    directory = vault / stage_gate._BY_NAME["critique"].directory / sid
+    directory.mkdir(parents=True, exist_ok=True)
+    for lane_name, payload in (lanes or CRITIQUE_LANES).items():
+        (directory / f"{lane_name}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
+_FULL_REVIEW_LEDGER = ("receipts", "research", "digest", "provenance", "critique", "patch", "refuted")
+
+
+def _write_approval(vault, sid, upstream_stages=_FULL_REVIEW_LEDGER):
+    """Bind to the REAL current bytes of the named upstream stages, via the module under test."""
+    content = "A fixed-count loop repeats the statements inside its body three times."
+    upstream = []
+    for name in upstream_stages:
+        h = stage_gate._current_stage_hash(vault, name, sid)
+        if h:
+            upstream.append({"stage": name, "hash": h})
+    doc = {
+        "kind": "approval-decision",
+        "actor": "reviewer-name",
+        "authority": "specialist_council",
+        "content": content,
+        "content_hash": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "upstream": upstream,
+        "rationale": "fixture rationale binding this decision to real upstream evidence.",
+    }
+    text = "# Approval\n\n```yaml\n" + yaml.safe_dump(doc) + "```\n"
+    (vault / "60-approved" / f"{sid}.md").write_text(text, encoding="utf-8")
 
 
 def _evidence(vault, sid, *stages):
     """Write the minimum artifact that satisfies each named stage."""
     for name in stages:
+        if name == "critique":
+            _write_critique_lanes(vault, sid)
+            continue
+        if name == "approved":
+            _write_approval(vault, sid)
+            continue
         stage = next(s for s in stage_gate.STAGE_CHAIN if s.name == name)
         rel = stage.pattern.format(sid=sid, level=sid.split("-")[0].lstrip("L"))
         rel = rel.replace("*", "x")
@@ -127,7 +240,10 @@ def test_only_predecessors_are_checked(vault):
 # --- STEP 9 R1-R4: presence is no longer enough for these four stages -------
 
 
-@pytest.mark.parametrize("stage_name", ["receipts", "research", "digest", "provenance"])
+@pytest.mark.parametrize(
+    "stage_name",
+    ["receipts", "research", "digest", "provenance", "patch", "refuted", "approved"],
+)
 def test_placeholder_text_no_longer_satisfies_these_stages(vault, stage_name):
     """The exact defect this batch exists to close: a present-but-empty file used to pass."""
     stage = stage_gate._BY_NAME[stage_name]
@@ -139,6 +255,17 @@ def test_placeholder_text_no_longer_satisfies_these_stages(vault, stage_name):
     ok, detail = stage_gate.check_stage(vault, stage, "L1-s1", TODAY)
     assert not ok, detail
     assert "content validation" in detail
+
+
+def test_placeholder_json_no_longer_satisfies_critique(vault):
+    """Critique is judged as a set, so its failure message differs from the single-file stages."""
+    directory = vault / "40-critique" / "L1-s1"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "codex.json").write_text("not json", encoding="utf-8")
+
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert not ok, detail
+    assert "not valid JSON" in detail
 
 
 @pytest.mark.parametrize("stage_name", ["receipts", "research", "digest"])
@@ -203,6 +330,226 @@ def test_provenance_skips_ordinary_receipts_before_the_specialist_receipt(vault)
         vault, stage_gate._BY_NAME["provenance"], "L1-s1", TODAY
     )
     assert ok, detail
+
+
+# --- STEP 9 R5-R8: critique/patch/refuted/approved must cross-check ---------
+
+
+def test_critique_requires_all_three_documented_lanes(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance")
+    _write_critique_lanes(vault, "L1-s1", lanes={"codex": CRITIQUE_LANES["codex"]})
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert not ok
+    assert "hermes" in detail and "opencode" in detail
+
+
+def test_three_independent_lanes_pass(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance")
+    _write_critique_lanes(vault, "L1-s1")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert ok, detail
+    assert "codex" in detail and "hermes" in detail and "opencode" in detail
+
+
+def test_critique_rejects_a_duplicate_lane_id(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance")
+    directory = vault / "40-critique" / "L1-s1"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "codex.json").write_text(json.dumps(CRITIQUE_LANES["codex"]), encoding="utf-8")
+    (directory / "codex-2.json").write_text(json.dumps(CRITIQUE_LANES["codex"]), encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert not ok
+    assert "duplicates" in detail
+
+
+def test_critique_rejects_duplicate_lane_even_with_two_other_valid_lanes(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance")
+    lanes = {
+        **CRITIQUE_LANES,
+        "codex-copy": CRITIQUE_LANES["codex"],
+    }
+    _write_critique_lanes(vault, "L1-s1", lanes=lanes)
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert not ok
+    assert "duplicates" in detail
+
+
+def test_critique_rejects_a_malformed_extra_lane(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique")
+    directory = vault / "40-critique" / "L1-s1"
+    (directory / "broken.json").write_text("not json", encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert not ok
+    assert "broken.json" in detail
+
+
+def test_critique_lanes_must_review_the_same_frozen_input(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance")
+    lanes = {
+        **CRITIQUE_LANES,
+        "hermes": {**CRITIQUE_LANES["hermes"], "input_hash": "sha256:other-draft"},
+    }
+    _write_critique_lanes(vault, "L1-s1", lanes=lanes)
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert not ok
+    assert "input_hash" in detail
+
+
+def test_critique_rejects_conflicting_severities_for_one_issue_id(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance")
+    second_issue = {**CRITIQUE_LANES["codex"]["issues"][0], "severity": "low"}
+    lanes = {
+        "codex": CRITIQUE_LANES["codex"],
+        "hermes": {**CRITIQUE_LANES["hermes"], "issues": [second_issue], "reviewed_no_issues": False},
+        "opencode": CRITIQUE_LANES["opencode"],
+    }
+    _write_critique_lanes(vault, "L1-s1", lanes=lanes)
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert not ok
+    assert "severity" in detail and "I1" in detail
+
+
+def test_critique_citations_must_resolve_against_provenance(vault):
+    _evidence(vault, "L1-s1", "receipts")  # no provenance written
+    _write_critique_lanes(vault, "L1-s1")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["critique"], "L1-s1", TODAY)
+    assert not ok
+    assert "C1" in detail
+
+
+def test_patch_accepts_an_issue_id_a_real_critique_lane_raised(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique", "patch")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["patch"], "L1-s1", TODAY)
+    assert ok, detail
+
+
+def test_patch_rejects_an_issue_id_no_critique_lane_raised(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique")
+    bogus = PATCH_CONTENT.replace("I1", "I-not-real")
+    (vault / "50-patch" / "L1-s1.md").write_text(bogus, encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["patch"], "L1-s1", TODAY)
+    assert not ok
+    assert "I-not-real" in detail
+
+
+def test_refutation_must_challenge_a_real_high_severity_patch(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique", "patch")
+    unaddressed = yaml.safe_dump(
+        {"kind": "refutation-record", "reviewer": "opencode", "no_high_severity_patches": True, "challenges": []}
+    )
+    (vault / "55-refuted" / "L1-s1.md").write_text(f"# Refutation\n\n```yaml\n{unaddressed}```\n", encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["refuted"], "L1-s1", TODAY)
+    assert not ok
+    assert "I1" in detail
+
+
+def test_refutation_passes_when_it_covers_the_high_severity_patch(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique", "patch", "refuted")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["refuted"], "L1-s1", TODAY)
+    assert ok, detail
+
+
+def test_refutation_rejects_a_defeated_high_severity_patch(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique", "patch")
+    defeated = REFUTED_CONTENT.replace("result: survived", "result: defeated")
+    (vault / "55-refuted" / "L1-s1.md").write_text(defeated, encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["refuted"], "L1-s1", TODAY)
+    assert not ok
+    assert "defeated" in detail and "I1" in detail
+
+
+def test_refutation_rejects_a_challenge_to_a_non_high_severity_patch(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique")
+    low_lane = {**CRITIQUE_LANES["codex"], "issues": [{**CRITIQUE_LANES["codex"]["issues"][0], "severity": "low"}]}
+    _write_critique_lanes(vault, "L1-s1", lanes={"codex": low_lane, "hermes": CRITIQUE_LANES["hermes"]})
+    _evidence(vault, "L1-s1", "patch", "refuted")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["refuted"], "L1-s1", TODAY)
+    assert not ok
+    assert "not applied high-severity" in detail
+
+
+def test_refutation_rejects_a_patch_with_an_invented_issue_id(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique")
+    bogus_patch = PATCH_CONTENT.replace("I1", "I-not-real")
+    (vault / "50-patch" / "L1-s1.md").write_text(bogus_patch, encoding="utf-8")
+    applicability = yaml.safe_dump(
+        {"kind": "refutation-record", "reviewer": "opencode", "no_high_severity_patches": True, "challenges": []}
+    )
+    (vault / "55-refuted" / "L1-s1.md").write_text(f"# Refutation\n\n```yaml\n{applicability}```\n", encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["refuted"], "L1-s1", TODAY)
+    assert not ok
+    assert "I-not-real" in detail
+
+
+def test_refutation_applicability_record_passes_with_no_high_severity_patches(vault):
+    """Withheld-only patch: no applied high-severity issue exists to challenge."""
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique")
+    withheld = yaml.safe_dump(
+        {
+            "kind": "patch-adjudication",
+            "revision": "r1",
+            "entries": [{"issue_id": "I1", "disposition": "withheld", "rationale": "fixture"}],
+        }
+    )
+    (vault / "50-patch" / "L1-s1.md").write_text(f"# Patch\n\n```yaml\n{withheld}```\n", encoding="utf-8")
+    clean = yaml.safe_dump(
+        {"kind": "refutation-record", "reviewer": "opencode", "no_high_severity_patches": True, "challenges": []}
+    )
+    (vault / "55-refuted" / "L1-s1.md").write_text(f"# Refutation\n\n```yaml\n{clean}```\n", encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["refuted"], "L1-s1", TODAY)
+    assert ok, detail
+
+
+def test_approval_passes_when_bound_to_real_current_evidence(vault):
+    _evidence(vault, "L1-s1", "receipts", "research", "digest", "provenance", "critique", "patch", "refuted", "approved")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["approved"], "L1-s1", TODAY)
+    assert ok, detail
+
+
+def test_approval_rejects_a_partial_review_ledger(vault):
+    """A decision bound only to `receipts` is self-asserted, not settled (comparison doc §3.8)."""
+    _evidence(vault, "L1-s1", "receipts", "research", "digest", "provenance", "critique", "patch", "refuted")
+    _write_approval(vault, "L1-s1", upstream_stages=("receipts",))
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["approved"], "L1-s1", TODAY)
+    assert not ok
+    assert "resolved review ledger" in detail
+
+
+def test_approval_fails_when_an_upstream_hash_is_stale(vault):
+    _evidence(vault, "L1-s1", "receipts", "research", "digest", "provenance", "critique", "patch", "refuted", "approved")
+    # provenance changed AFTER approval was written — the declared hash is now stale
+    (vault / "20-provenance" / "L1-s1.md").write_text(PROVENANCE_CONTENT + "\n# edited\n", encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["approved"], "L1-s1", TODAY)
+    assert not ok
+    assert "stale" in detail
+
+
+def test_stage_hash_preserves_file_boundaries(vault):
+    directory = vault / "30-research" / "L1"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "a.md").write_bytes(b"ab")
+    (directory / "b.md").write_bytes(b"c")
+    first_hash = stage_gate._current_stage_hash(vault, "research", "L1-s1")
+
+    (directory / "a.md").write_bytes(b"a")
+    (directory / "b.md").write_bytes(b"bc")
+    second_hash = stage_gate._current_stage_hash(vault, "research", "L1-s1")
+
+    assert first_hash != second_hash
+
+
+@pytest.mark.parametrize("stage_name", ["approved", "localized", "bundle", "generation"])
+def test_approval_rejects_non_upstream_stage_names(vault, stage_name):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "critique", "patch", "refuted")
+    stage = stage_gate._BY_NAME[stage_name]
+    rel = stage.pattern.format(sid="L1-s1", level="1").replace("*", "x")
+    path = vault / stage.directory / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("future evidence", encoding="utf-8")
+    _write_approval(vault, "L1-s1", upstream_stages=(stage_name,))
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["approved"], "L1-s1", TODAY)
+    assert not ok
+    assert "not before" in detail
 
 
 def test_invalid_artifact_does_not_suppress_a_valid_waiver(vault):

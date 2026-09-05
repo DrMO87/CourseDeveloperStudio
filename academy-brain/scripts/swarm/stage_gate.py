@@ -20,6 +20,15 @@ be satisfied by any file matching the glob, regardless of content — a session
 could enter bundle on four empty-but-present files. Those four stages now
 also run a structural content check (see `_CONTENT_VALIDATORS` below); the
 other stages are unchanged pending their own batch.
+
+STEP 9 R5-R8 (2026-09-05): critique, patch, refutation, and approval gained
+the same treatment. Critique is checked as a set (`_COLLECTION_VALIDATORS`):
+independent lanes together, not any one lane alone. Patch, refutation, and
+approval each cross-check against an earlier stage's real content — an
+adjudicated issue id must have been raised by a real critique lane, a
+challenged patch id must actually be high-severity, and an approval's
+declared upstream hashes must match the vault's current evidence, not a
+stale or self-asserted one.
 """
 
 from __future__ import annotations
@@ -27,6 +36,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import filecmp
+import hashlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,14 +45,24 @@ from typing import Callable
 import yaml
 
 from .gates import PASS as GATE_PASS
-from .gates import digest_synthesis, provenance_map, receipt_claims, research_tasks
+from .gates import (
+    approval_decision,
+    critique_lane,
+    digest_synthesis,
+    patch_adjudication,
+    provenance_map,
+    receipt_claims,
+    refutation_challenge,
+    research_tasks,
+)
 from .paths import validate_session_id
 
 # Bumped when the stage chain or the waiver contract changes in a way that would
 # alter a verdict. Stamped into every receipt so a later doctrine change can
 # never silently reinterpret an artifact that passed under earlier rules.
 # 2 -> 3: receipts/research/digest/provenance gained content validation (STEP 9 R1-R4).
-DOCTRINE_VERSION = 3
+# 3 -> 4: critique/patch/refuted/approved gained content validation (STEP 9 R5-R8).
+DOCTRINE_VERSION = 4
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -211,6 +231,87 @@ def _validate_provenance(vault: Path, sid: str, text: str) -> tuple[bool, str]:
     return True, f"{len(doc['_claim_ids'])} claim(s) traced and resolved against the specialist receipt"
 
 
+def _find_provenance(vault: Path, sid: str) -> dict | None:
+    """Locate this session's provenance map, parsed. `None` if none parses."""
+    stage = _BY_NAME["provenance"]
+    pattern = stage.pattern.format(sid=sid, level=_level_of(sid))
+    for candidate in sorted((vault / stage.directory).glob(pattern)):
+        if not candidate.is_file() or ".waiver." in candidate.name:
+            continue
+        try:
+            return provenance_map.parse_provenance(candidate.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+    return None
+
+
+def _critique_issue_severities(vault: Path, sid: str) -> dict[str, str]:
+    """Issue severities from every critique lane; malformed or conflicting input fails closed."""
+    stage = _BY_NAME["critique"]
+    pattern = stage.pattern.format(sid=sid, level=_level_of(sid))
+    severities: dict[str, str] = {}
+    for candidate in sorted((vault / stage.directory).glob(pattern)):
+        if not candidate.is_file() or ".waiver." in candidate.name:
+            continue
+        try:
+            doc = critique_lane.parse_lane(candidate.read_text(encoding="utf-8"))
+        except (ValueError, OSError, UnicodeError) as exc:
+            raise ValueError(f"{candidate.name}: {exc}") from exc
+        for issue_id, severity in doc["_issue_severities"].items():
+            previous = severities.get(issue_id)
+            if previous is not None and previous != severity:
+                raise ValueError(
+                    f"critique issue {issue_id!r} has conflicting severity {previous!r} and {severity!r}"
+                )
+            severities[issue_id] = severity
+    return severities
+
+
+def _find_patch(vault: Path, sid: str) -> dict | None:
+    """Locate this session's patch adjudication record, parsed. `None` if none parses."""
+    stage = _BY_NAME["patch"]
+    pattern = stage.pattern.format(sid=sid, level=_level_of(sid))
+    for candidate in sorted((vault / stage.directory).glob(pattern)):
+        if not candidate.is_file() or ".waiver." in candidate.name:
+            continue
+        try:
+            return patch_adjudication.parse_patch(candidate.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+    return None
+
+
+def _current_stage_hash(vault: Path, stage_name: str, sid: str) -> str | None:
+    """SHA256 over every current artifact for one stage — approval's freshness check.
+
+    Hashes the raw bytes of whatever currently matches the stage's glob,
+    regardless of whether it would itself pass content validation, so a stale
+    approval is caught the moment ANY upstream artifact changes, not only
+    when it becomes invalid.
+    """
+    stage = _BY_NAME.get(stage_name)
+    if stage is None:
+        return None
+    pattern = stage.pattern.format(sid=sid, level=_level_of(sid))
+    hits = sorted(
+        p for p in (vault / stage.directory).glob(pattern) if p.is_file() and ".waiver." not in p.name
+    )
+    if not hits:
+        return None
+    digest = hashlib.sha256()
+    for path in hits:
+        try:
+            relative_name = path.relative_to(vault / stage.directory).as_posix().encode("utf-8")
+            content = path.read_bytes()
+        except OSError:
+            return None
+        digest.update(len(relative_name).to_bytes(8, "big"))
+        digest.update(relative_name)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
 def _gate_validator(fn) -> Callable[[Path, str, str], tuple[bool, str]]:
     """Adapt a `swarm.gates` text->GateResult function to a (vault, sid, text) validator."""
 
@@ -221,13 +322,177 @@ def _gate_validator(fn) -> Callable[[Path, str, str], tuple[bool, str]]:
     return run
 
 
-# Stages whose presence check is not enough on its own (STEP 9 R1-R4). A stage
-# absent from this dict keeps today's filename-glob-only behavior.
+# ENGINE's documented three-lane roster (scaffold_vault.py TOPOLOGY["40-critique"]["fanout"];
+# comparison doc §3.5: "Preserve the documented codex/opencode/hermes lanes ... An unavailable
+# required lane is missing review evidence, not an empty successful response. R6 depends on
+# this full review set or explicitly represented waivers." — duplicated locally rather than
+# imported, matching this module's existing convention for approval_decision.AUTHORITIES.
+REQUIRED_CRITIQUE_LANES = frozenset({"codex", "opencode", "hermes"})
+
+
+def _validate_critique_lanes(vault: Path, sid: str, hits: list[Path]) -> tuple[bool, str]:
+    """All lanes together, not any one lane alone: distinct, independently valid, source-resolved."""
+    won_by: dict[str, str] = {}
+    parsed: dict[str, dict] = {}
+    for candidate in hits:
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            return False, f"{candidate.name}: could not read ({exc})"
+        try:
+            doc = critique_lane.parse_lane(text)
+        except ValueError as exc:
+            return False, f"{candidate.name}: {exc}"
+        if doc["_lane"] in parsed:
+            return False, f"{candidate.name}: lane {doc['_lane']!r} duplicates {won_by[doc['_lane']]}"
+        won_by[doc["_lane"]] = candidate.name
+        parsed[doc["_lane"]] = doc
+
+    missing = sorted(REQUIRED_CRITIQUE_LANES - parsed.keys())
+    if missing:
+        return False, f"missing required critique lane(s): {', '.join(missing)}"
+
+    input_hashes = {doc["input_hash"] for doc in parsed.values()}
+    if len(input_hashes) != 1:
+        return False, "critique lanes declare different `input_hash` values for the frozen draft"
+
+    try:
+        _critique_issue_severities(vault, sid)
+    except ValueError as exc:
+        return False, str(exc)
+
+    provenance = _find_provenance(vault, sid)
+    known_claims = set(provenance["_claim_ids"]) if provenance else set()
+    unresolved = sorted(
+        f"{lane}:{cid}"
+        for lane, doc in parsed.items()
+        for cid in doc["_cited_claims"]
+        if cid not in known_claims
+    )
+    if unresolved:
+        return False, f"critique cites claim id(s) not resolved by provenance: {', '.join(unresolved)}"
+
+    total_issues = sum(len(doc["_issue_ids"]) for doc in parsed.values())
+    return True, f"{len(parsed)} independent lane(s) ({', '.join(sorted(parsed))}), {total_issues} issue(s)"
+
+
+def _validate_patch(vault: Path, sid: str, text: str) -> tuple[bool, str]:
+    """Patch must parse AND every adjudicated issue id must be a real critique issue."""
+    try:
+        doc = patch_adjudication.parse_patch(text)
+    except ValueError as exc:
+        return False, str(exc)
+    try:
+        known_issues = _critique_issue_severities(vault, sid)
+    except ValueError as exc:
+        return False, f"critique evidence is invalid: {exc}"
+    unresolved = [iid for iid in doc["_issue_ids"] if iid not in known_issues]
+    if unresolved:
+        return False, f"patch adjudicates issue id(s) not raised by any critique lane: {', '.join(unresolved)}"
+    return True, f"revision {doc['revision']!r}, {len(doc['_issue_ids'])} issue(s) adjudicated against real critique issues"
+
+
+def _validate_refutation(vault: Path, sid: str, text: str) -> tuple[bool, str]:
+    """Refutation must parse AND cover every applied, high-severity patch issue."""
+    try:
+        doc = refutation_challenge.parse_refutation(text)
+    except ValueError as exc:
+        return False, str(exc)
+
+    patch = _find_patch(vault, sid)
+    try:
+        severities = _critique_issue_severities(vault, sid)
+    except ValueError as exc:
+        return False, f"critique evidence is invalid: {exc}"
+    if patch is None:
+        return False, "no valid current patch adjudication found"
+
+    patch_issue_ids = set(patch["_issue_ids"])
+    invented = sorted(patch_issue_ids - severities.keys())
+    if invented:
+        return False, f"patch adjudicates issue id(s) not raised by any critique lane: {', '.join(invented)}"
+    applied_ids = {e["issue_id"] for e in patch["entries"] if e["disposition"] == "applied"}
+    high_severity_ids = {iid for iid in applied_ids if severities[iid] == "high"}
+
+    if high_severity_ids and doc["_no_high_severity_patches"]:
+        return False, (
+            "refutation declares `no_high_severity_patches: true` but the patch "
+            f"applies high-severity issue(s): {', '.join(sorted(high_severity_ids))}"
+        )
+    missing = sorted(high_severity_ids - set(doc["_challenged_issue_ids"]))
+    if missing:
+        return False, f"refutation does not challenge high-severity patch id(s): {', '.join(missing)}"
+
+    extraneous = sorted(set(doc["_challenged_issue_ids"]) - high_severity_ids)
+    if extraneous:
+        return False, f"refutation challenges issue id(s) that are not applied high-severity patches: {', '.join(extraneous)}"
+    defeated = sorted(
+        issue_id
+        for issue_id in high_severity_ids
+        if doc["_challenge_results"][issue_id] == "defeated"
+    )
+    if defeated:
+        return False, f"high-severity patch id(s) defeated by refutation must return to patch: {', '.join(defeated)}"
+
+    if high_severity_ids:
+        return True, f"{len(high_severity_ids)} high-severity patch(es) challenged"
+    return True, "no high-severity patches to challenge"
+
+
+def _validate_approval(vault: Path, sid: str, text: str) -> tuple[bool, str]:
+    """Approval must parse, bind the FULL resolved review ledger, and match the vault right now.
+
+    Comparison doc §3.8: the decision must bind to "the source/research/review hashes"
+    and must "refuse a self-asserted council record without the corresponding reviews" —
+    a subset (e.g. only `receipts`) is a self-asserted record, not a settled one.
+    """
+    try:
+        doc = approval_decision.parse_approval(text)
+    except ValueError as exc:
+        return False, str(exc)
+
+    approval_index = tuple(_BY_NAME).index("approved")
+    valid_upstream = set(tuple(_BY_NAME)[:approval_index])
+    for stage_name in doc["_upstream"]:
+        if stage_name not in _BY_NAME:
+            return False, f"approval upstream names unknown stage {stage_name!r}"
+        if stage_name not in valid_upstream:
+            return False, f"approval upstream stage {stage_name!r} is not before 'approved'"
+    missing_ledger = sorted(valid_upstream - doc["_upstream"].keys())
+    if missing_ledger:
+        return False, (
+            "approval does not bind the full resolved review ledger — missing "
+            f"upstream stage(s): {', '.join(missing_ledger)}"
+        )
+
+    stale: list[str] = []
+    for stage_name, declared_hash in doc["_upstream"].items():
+        current_hash = _current_stage_hash(vault, stage_name, sid)
+        if current_hash is None:
+            stale.append(f"{stage_name}: no current evidence found")
+        elif current_hash != declared_hash:
+            stale.append(f"{stage_name}: declared hash does not match current evidence")
+    if stale:
+        return False, f"approval is stale against the live vault: {'; '.join(stale)}"
+    return True, f"settled by {doc['actor']!r}, bound to {len(doc['_upstream'])} upstream stage(s), all current"
+
+
+# Stages whose presence check is not enough on its own (STEP 9 R1-R4/R5-R8). A
+# stage absent from both dicts below keeps today's filename-glob-only behavior.
 _CONTENT_VALIDATORS: dict[str, Callable[[Path, str, str], tuple[bool, str]]] = {
     "receipts": _gate_validator(receipt_claims.receipt_claims),
     "research": _gate_validator(research_tasks.research_tasks),
     "digest": _gate_validator(digest_synthesis.digest_synthesis),
     "provenance": _validate_provenance,
+    "patch": _validate_patch,
+    "refuted": _validate_refutation,
+    "approved": _validate_approval,
+}
+
+# Stages that must be judged as a SET of artifacts, not any one artifact alone
+# (STEP 9 R5): three independent critique lanes only mean something together.
+_COLLECTION_VALIDATORS: dict[str, Callable[[Path, str, list[Path]], tuple[bool, str]]] = {
+    "critique": _validate_critique_lanes,
 }
 
 
@@ -239,6 +504,16 @@ def check_stage(vault: Path, stage: Stage, sid: str, today: _dt.date) -> tuple[b
         p for p in directory.glob(pattern) if p.is_file() and ".waiver." not in p.name
     )
     if hits:
+        collection_validator = _COLLECTION_VALIDATORS.get(stage.name)
+        if collection_validator is not None:
+            ok, detail = collection_validator(vault, sid, hits)
+            if ok:
+                return True, detail
+            wp = waiver_path(vault, stage, sid)
+            if wp.is_file():
+                return read_waiver(wp, today, stage.scope)
+            return False, f"{len(hits)} artifact(s) at {stage.directory}/{pattern} but {detail}"
+
         validator = _CONTENT_VALIDATORS.get(stage.name)
         if validator is None:
             return True, f"{len(hits)} artifact(s) at {stage.directory}/{pattern}"
