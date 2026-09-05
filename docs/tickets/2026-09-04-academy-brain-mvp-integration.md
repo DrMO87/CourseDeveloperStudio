@@ -611,7 +611,7 @@ Concretely, replace these two module-level constants with values read from per-j
 | 8b | frontend-developer + backend-dev | Deferred, not scheduled (DEC-008) — former STEP 8 (full MVP merge), preserved verbatim, requires a fresh explicit user go-ahead | | — |
 | 9 | system-architect (Phase A) / backend-dev + coder (Phase B) | Phase A (diagnose+propose) done — `step9-digestion-diagnosis.md` — and user-approved. Phase B implemented and committed in three dependency-ordered batches: batch 1 R1-R4 (`a1e6721`), batch 2 R5-R8 (`f67f4ae`), batch 3 R9-R10 + §3.11 (`6c0c420`). Complete. | `docs/tickets/handoffs/step9-digestion-diagnosis.md` | 2026-09-05 |
 | 10 | backend-dev | Committed (`7457390`) — canonical vault writer, path-safety fixes, dossier sync, auth-forwarding proxy, org-logo sync, NLM-download import; Codex round 4 review: ready, no bugs found | `docs/tickets/handoffs/step10-vault-sync.md` | 2026-09-05 |
-| 11 | system-architect (Phase A) / backend-dev + coder (Phase B) | Not started — rescoped 2026-09-05 from NBLM-prompt-only proposal to pipeline-wide, batched Standing Rule 10a implementation | | — |
+| 11 | system-architect (Phase A) / backend-dev + coder (Phase B) | Committed (`325af60`) — Batches 1-3 implemented (cascade primitives, STEP 3 gate wiring, pedagogy-coverage + NBLM-prompt-preflight); Batch 4 (citation-filtering) investigated and skipped, no live caller for the existing gate exists; Batch 5 regression clean, STEP 8b/12 end-to-end confirmation deferred (neither has real code yet) | `docs/tickets/handoffs/step11-nblm-prompt-authoring.md` | 2026-09-05 |
 | 12 | backend-dev + coder | Not started | | — |
 
 ## Related
