@@ -186,6 +186,61 @@ def _write_approval(vault, sid, upstream_stages=_FULL_REVIEW_LEDGER):
     (vault / "60-approved" / f"{sid}.md").write_text(text, encoding="utf-8")
 
 
+def _write_localization(vault, sid, claims=("C1",)):
+    """Bind to the REAL current `approved` hash, via the module under test."""
+    bound_hash = stage_gate._current_stage_hash(vault, "approved", sid)
+    doc = {
+        "kind": "localization-alignment",
+        "bound_to": {"stage": "approved", "hash": bound_hash},
+        "segments": [
+            {
+                "id": "A2.1",
+                "claims": list(claims),
+                "english": "Repeat the body 3 times.",
+                "arabic": "كرّر الأوامر داخل الحلقة 3 مرات.",
+            }
+        ],
+    }
+    text = "# Localization\n\n```yaml\n" + yaml.safe_dump(doc, allow_unicode=True) + "```\n"
+    (vault / "70-localized" / f"{sid}.md").write_text(text, encoding="utf-8")
+
+
+def _write_bundle(vault, sid, home_summary_extra=""):
+    directory = vault / "75-bundle" / sid
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "slides-source.md").write_text(
+        "Slide 1: repeat the body three times, tracing each iteration explicitly.",
+        encoding="utf-8",
+    )
+    (directory / "decisions.md").write_text(
+        "Chose to keep the trace task focused on the loop body per O1 scope decisions made.",
+        encoding="utf-8",
+    )
+    (directory / "blueprint.md").write_text(
+        "---\nstatus: approved\napproval:\n  kind: specialist_council\n---\nAll settled for this session.\n",
+        encoding="utf-8",
+    )
+    sources_doc = {
+        "kind": "bundle-sources",
+        "claims": [
+            {"id": "C1", "source": "fixture-source", "revision": "fixture-rev", "locator": "page:1"}
+        ],
+    }
+    (directory / "SOURCES.md").write_text(
+        "# Sources\n\n```yaml\n" + yaml.safe_dump(sources_doc) + "```\n", encoding="utf-8"
+    )
+    (directory / "ASSET-MAPPING.md").write_text(
+        "| id | slide | path | class | status |\n|---|---|---|---|---|\n"
+        "| img-1 | 1 | assets/img-1.png | REFERENCE | Produced and mapped |\n",
+        encoding="utf-8",
+    )
+    (directory / "home-summary.md").write_text(
+        "The loop repeats its body three times; trace each pass to see what changes."
+        + home_summary_extra,
+        encoding="utf-8",
+    )
+
+
 def _evidence(vault, sid, *stages):
     """Write the minimum artifact that satisfies each named stage."""
     for name in stages:
@@ -194,6 +249,12 @@ def _evidence(vault, sid, *stages):
             continue
         if name == "approved":
             _write_approval(vault, sid)
+            continue
+        if name == "localized":
+            _write_localization(vault, sid)
+            continue
+        if name == "bundle":
+            _write_bundle(vault, sid)
             continue
         stage = next(s for s in stage_gate.STAGE_CHAIN if s.name == name)
         rel = stage.pattern.format(sid=sid, level=sid.split("-")[0].lstrip("L"))
@@ -798,3 +859,136 @@ def test_bad_session_id_is_refused(vault):
 def test_receipt_stamps_the_doctrine_version(vault):
     doc = stage_gate.receipt("L1-s1", "bundle", [])
     assert doc["doctrine_version"] == stage_gate.DOCTRINE_VERSION
+
+
+# --- STEP 9 R9-R10: localization/bundle must cite real content and bind fresh ---
+
+
+def test_localization_passes_when_bound_to_real_current_approval(vault):
+    _evidence(vault, "L1-s1", "receipts", "research", "digest", "provenance", "critique", "patch", "refuted", "approved", "localized")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["localized"], "L1-s1", TODAY)
+    assert ok, detail
+
+
+def test_localization_fails_when_the_approved_stage_is_stale(vault):
+    _evidence(vault, "L1-s1", "receipts", "research", "digest", "provenance", "critique", "patch", "refuted", "approved", "localized")
+    # approval changed AFTER localization was written — the declared hash is now stale
+    approved_path = vault / "60-approved" / "L1-s1.md"
+    approved_path.write_text(approved_path.read_text(encoding="utf-8") + "\n# edited\n", encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["localized"], "L1-s1", TODAY)
+    assert not ok
+    assert "stale" in detail
+
+
+def test_localization_citations_must_resolve_against_provenance(vault):
+    _evidence(vault, "L1-s1", "receipts", "research", "digest", "provenance", "critique", "patch", "refuted", "approved")
+    _write_localization(vault, "L1-s1", claims=("C-not-real",))
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["localized"], "L1-s1", TODAY)
+    assert not ok
+    assert "C-not-real" in detail
+
+
+def test_localization_requires_current_approved_evidence(vault):
+    _evidence(vault, "L1-s1", "receipts", "research", "digest", "provenance", "critique", "patch", "refuted", "approved", "localized")
+    (vault / "60-approved" / "L1-s1.md").unlink()
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["localized"], "L1-s1", TODAY)
+    assert not ok
+    assert "no current evidence" in detail
+
+
+def test_bundle_requires_all_six_files(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance")
+    directory = vault / "75-bundle" / "L1-s1"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "slides-source.md").write_text("only one file exists here, nothing else", encoding="utf-8")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert not ok
+    assert "blueprint.md" in detail and "SOURCES.md" in detail
+
+
+def test_bundle_passes_when_all_six_files_are_substantive_and_consistent(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "bundle")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert ok, detail
+
+
+def test_bundle_rejects_an_unapproved_blueprint(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "bundle")
+    (vault / "75-bundle" / "L1-s1" / "blueprint.md").write_text(
+        "---\nstatus: draft-awaiting-owner-approval\n---\n", encoding="utf-8"
+    )
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert not ok
+    assert "not been approved" in detail
+
+
+def test_bundle_rejects_short_student_content(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "bundle")
+    (vault / "75-bundle" / "L1-s1" / "slides-source.md").write_text(
+        "Too short.", encoding="utf-8"
+    )
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert not ok
+    assert "slides-source.md: too short" in detail
+
+
+def test_bundle_rejects_blueprint_with_unknown_approval_kind(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "bundle")
+    (vault / "75-bundle" / "L1-s1" / "blueprint.md").write_text(
+        "---\nstatus: approved\napproval:\n  kind: vibes\n---\n", encoding="utf-8"
+    )
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert not ok
+    assert "approval.kind" in detail and "vibes" in detail
+
+
+def test_bundle_rejects_asset_mapping_without_a_recognizable_row(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "bundle")
+    (vault / "75-bundle" / "L1-s1" / "ASSET-MAPPING.md").write_text(
+        "This file has no asset table or classification.", encoding="utf-8"
+    )
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert not ok
+    assert "ASSET-MAPPING.md" in detail
+
+
+def test_bundle_rejects_malformed_sources_before_claim_resolution(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance", "bundle")
+    (vault / "75-bundle" / "L1-s1" / "SOURCES.md").write_text(
+        "# Sources\n\n```yaml\nkind: bundle-sources\nclaims: not-a-list\n```\n", encoding="utf-8"
+    )
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert not ok
+    assert "SOURCES.md" in detail and "no `claims`" in detail
+
+
+def test_bundle_sources_must_resolve_against_provenance(vault):
+    _evidence(vault, "L1-s1", "receipts")  # no provenance written
+    _write_bundle(vault, "L1-s1")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert not ok
+    assert "C1" in detail
+
+
+def test_bundle_home_summary_cannot_leak_the_answer_key(vault):
+    """RESEARCH_CONTENT's task `key` is "K1" — leaking it verbatim into the student summary must fail."""
+    _evidence(vault, "L1-s1", "receipts", "provenance", "research")
+    _write_bundle(vault, "L1-s1", home_summary_extra=" The answer is K1.")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+    assert not ok
+    assert "K1" in detail
+
+
+def test_bundle_home_summary_catches_a_punctuation_ended_answer_key(vault):
+    """Literal keys remain detectable when their final character is not a regex word character."""
+    _evidence(vault, "L1-s1", "receipts", "provenance", "research")
+    research = next((vault / "30-research" / "L1").glob("*.md"))
+    research.write_text(
+        research.read_text(encoding="utf-8").replace("K1", "K1!"), encoding="utf-8"
+    )
+    _write_bundle(vault, "L1-s1", home_summary_extra=" The answer is K1!")
+
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["bundle"], "L1-s1", TODAY)
+
+    assert not ok
+    assert "K1!" in detail

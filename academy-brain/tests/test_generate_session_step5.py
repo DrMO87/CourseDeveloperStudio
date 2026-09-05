@@ -23,6 +23,18 @@ asset_discovery:
 """
 
 
+def test_asset_mapping_relative_paths_can_bind_to_the_job_root(tmp_path):
+    mapping = (
+        "| id | slide | path | class | status |\n"
+        "|---|---|---|---|---|\n"
+        "| img-1 | 1 | assets/img-1.png | REFERENCE | Produced and mapped |\n"
+    )
+
+    [asset] = gs.parse_asset_mapping(mapping, vault=tmp_path)
+
+    assert asset.path == tmp_path / "assets" / "img-1.png"
+
+
 def test_main_binds_legacy_path_users_to_per_job_root_and_reports_pedagogy(tmp_path, monkeypatch, capsys):
     # main intentionally changes the process default for downstream legacy
     # imports; register it with monkeypatch so this test restores suite state.
@@ -39,7 +51,7 @@ def test_main_binds_legacy_path_users_to_per_job_root_and_reports_pedagogy(tmp_p
         assert paths.validate_session_id(sid) == "L3-s1"
 
     monkeypatch.setattr(gs, "enforce_stage_chain", assert_legacy_validator_uses_job_root)
-    monkeypatch.setattr(gs, "parse_asset_mapping", lambda text: [])
+    monkeypatch.setattr(gs, "parse_asset_mapping", lambda text, **kwargs: [])
     monkeypatch.setattr(gs, "enforce_blueprint_gate", lambda path: None)
     monkeypatch.setattr(gs, "enforce_asset_gate", lambda assets: None)
     monkeypatch.setattr(gs, "reconcile_slides", lambda bundle, assets: None)

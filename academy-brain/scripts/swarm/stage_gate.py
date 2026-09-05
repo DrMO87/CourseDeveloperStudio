@@ -29,6 +29,16 @@ adjudicated issue id must have been raised by a real critique lane, a
 challenged patch id must actually be high-severity, and an approval's
 declared upstream hashes must match the vault's current evidence, not a
 stale or self-asserted one.
+
+STEP 9 R9-R10 (2026-09-05): localization and bundle gained the same
+treatment. Localization must cite real provenance claims, preserve every
+number and inline-code span from English into Arabic, and bind to the
+CURRENT `approved` hash. Bundle is checked as a set (`_COLLECTION_VALIDATORS`):
+all six files present, individually substantive, cross-consistent (SOURCES.md
+claims resolve against provenance; home-summary.md never leaks a research
+task's answer key) — without re-deriving generation time's own blueprint/
+asset checks (`generate_session.enforce_blueprint_gate`/`enforce_asset_gate`),
+which already run in full immediately before any quota is spent.
 """
 
 from __future__ import annotations
@@ -37,6 +47,7 @@ import argparse
 import datetime as _dt
 import filecmp
 import hashlib
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,11 +55,14 @@ from typing import Callable
 
 import yaml
 
+from .asset_mapping import parse_asset_mapping
 from .gates import PASS as GATE_PASS
 from .gates import (
     approval_decision,
+    bundle_sources,
     critique_lane,
     digest_synthesis,
+    localization_align,
     patch_adjudication,
     provenance_map,
     receipt_claims,
@@ -62,7 +76,8 @@ from .paths import validate_session_id
 # never silently reinterpret an artifact that passed under earlier rules.
 # 2 -> 3: receipts/research/digest/provenance gained content validation (STEP 9 R1-R4).
 # 3 -> 4: critique/patch/refuted/approved gained content validation (STEP 9 R5-R8).
-DOCTRINE_VERSION = 4
+# 4 -> 5: localized/bundle gained content validation (STEP 9 R9-R10).
+DOCTRINE_VERSION = 5
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -477,8 +492,168 @@ def _validate_approval(vault: Path, sid: str, text: str) -> tuple[bool, str]:
     return True, f"settled by {doc['actor']!r}, bound to {len(doc['_upstream'])} upstream stage(s), all current"
 
 
-# Stages whose presence check is not enough on its own (STEP 9 R1-R4/R5-R8). A
-# stage absent from both dicts below keeps today's filename-glob-only behavior.
+def _validate_localization(vault: Path, sid: str, text: str) -> tuple[bool, str]:
+    """Localization must parse, cite real claims, and bind to the CURRENT approved hash."""
+    try:
+        doc = localization_align.parse_localization(text)
+    except ValueError as exc:
+        return False, str(exc)
+
+    provenance = _find_provenance(vault, sid)
+    known_claims = set(provenance["_claim_ids"]) if provenance else set()
+    unresolved = [cid for cid in doc["_cited_claims"] if cid not in known_claims]
+    if unresolved:
+        return False, f"localization cites claim id(s) not resolved by provenance: {', '.join(unresolved)}"
+
+    current_hash = _current_stage_hash(vault, doc["_bound_stage"], sid)
+    if current_hash is None:
+        return False, f"localization is bound to {doc['_bound_stage']!r} but no current evidence was found"
+    if current_hash != doc["_bound_hash"]:
+        return False, f"localization is stale against the live {doc['_bound_stage']!r} evidence"
+    return True, f"{len(doc['_segment_ids'])} segment(s) aligned, bound to current {doc['_bound_stage']!r}"
+
+
+_REQUIRED_BUNDLE_FILES = (
+    "slides-source.md",
+    "blueprint.md",
+    "decisions.md",
+    "SOURCES.md",
+    "ASSET-MAPPING.md",
+    "home-summary.md",
+)
+MIN_BUNDLE_FILE_WORDS = 8
+
+
+def _research_answer_keys(vault: Path, sid: str) -> list[str]:
+    """Every task `key` string from this session's level research.
+
+    Feeds the bundle's home-summary leak check (comparison doc §3.10: "Keep
+    K1 in the designated research/teacher material unless the reviewed
+    teaching sequence explicitly calls for showing an answer").
+    """
+    stage = _BY_NAME["research"]
+    pattern = stage.pattern.format(sid=sid, level=_level_of(sid))
+    keys: list[str] = []
+    for candidate in sorted((vault / stage.directory).glob(pattern)):
+        if not candidate.is_file() or ".waiver." in candidate.name:
+            continue
+        try:
+            doc = research_tasks.parse_research(candidate.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        for task in doc.get("tasks", []):
+            key = task.get("key")
+            if isinstance(key, str) and key.strip():
+                keys.append(key.strip())
+    return keys
+
+
+def _contains_answer_key(text: str, key: str) -> bool:
+    """Match a literal key without treating it as part of a larger word."""
+    left = r"(?<!\w)" if re.match(r"\w", key[0]) else ""
+    right = r"(?!\w)" if re.match(r"\w", key[-1]) else ""
+    return re.search(f"{left}{re.escape(key)}{right}", text) is not None
+
+
+def _validate_bundle_files(vault: Path, sid: str, hits: list[Path]) -> tuple[bool, str]:
+    """All six bundle files together: present, individually substantive, cross-consistent.
+
+    Deliberately does not re-derive generation time's own blueprint/asset
+    checks (`generate_session.enforce_blueprint_gate`/`enforce_asset_gate`/
+    `reconcile_slides`) — those already run in full immediately before any
+    quota is spent. ASSET-MAPPING.md is parsed with the same
+    `asset_mapping.parse_asset_mapping` those checks use (no second, looser
+    copy of the table format to drift from), but this stops at "the table
+    parses into real rows with a recognized class" — it does not resolve
+    paths or reconcile slides; that stays generation-time's job. This asks
+    the narrower stage-gate question: did bundling actually happen, with
+    real per-file substance and cross-file consistency, rather than an
+    unrelated leftover file satisfying a bare glob match.
+    """
+    by_name = {p.name: p for p in hits}
+    missing = [name for name in _REQUIRED_BUNDLE_FILES if name not in by_name]
+    if missing:
+        return False, f"missing required bundle file(s): {', '.join(missing)}"
+
+    def _read(name: str) -> str | None:
+        try:
+            return by_name[name].read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            return None
+
+    for name in ("slides-source.md", "decisions.md", "home-summary.md"):
+        text = _read(name)
+        if text is None:
+            return False, f"{name}: could not read"
+        if len(text.split()) < MIN_BUNDLE_FILE_WORDS:
+            return False, f"{name}: too short to be real bundle content"
+
+    blueprint_text = _read("blueprint.md")
+    if blueprint_text is None:
+        return False, "blueprint.md: could not read"
+    if not blueprint_text.startswith("---"):
+        return False, "blueprint.md has no YAML front matter — cannot establish approval"
+    end = blueprint_text.find("\n---", 3)
+    if end == -1:
+        return False, "blueprint.md front matter is not closed by a '---' line"
+    try:
+        front = yaml.safe_load(blueprint_text[3:end])
+    except yaml.YAMLError as exc:
+        return False, f"blueprint.md front matter is not valid YAML: {exc}"
+    if not isinstance(front, dict):
+        return False, "blueprint.md front matter is not a mapping"
+    status = front.get("status")
+    if not isinstance(status, str) or status.strip().strip("\"'").lower() != "approved":
+        return False, f"blueprint.md status is {status!r} — it has not been approved"
+    approval = front.get("approval")
+    kind = approval.get("kind") if isinstance(approval, dict) else None
+    if isinstance(kind, str):
+        kind = kind.strip().strip("\"'")
+    if kind not in approval_decision.AUTHORITIES:
+        return False, (
+            f"blueprint.md approval.kind is {kind!r} — expected one of "
+            f"{sorted(approval_decision.AUTHORITIES)}"
+        )
+
+    asset_text = _read("ASSET-MAPPING.md")
+    if asset_text is None:
+        return False, "ASSET-MAPPING.md: could not read"
+    assets = parse_asset_mapping(asset_text, vault=vault)
+    if not assets:
+        return False, "ASSET-MAPPING.md has no parsable asset row"
+    bad_klass = sorted({a.klass for a in assets if a.klass not in {"REFERENCE", "EVIDENCE"}})
+    if bad_klass:
+        return False, f"ASSET-MAPPING.md has asset row(s) with unrecognized class: {', '.join(bad_klass)}"
+
+    sources_text = _read("SOURCES.md")
+    if sources_text is None:
+        return False, "SOURCES.md: could not read"
+    try:
+        sources_doc = bundle_sources.parse_sources(sources_text)
+    except ValueError as exc:
+        return False, f"SOURCES.md: {exc}"
+    provenance = _find_provenance(vault, sid)
+    known_claims = set(provenance["_claim_ids"]) if provenance else set()
+    unresolved = [cid for cid in sources_doc["_claim_ids"] if cid not in known_claims]
+    if unresolved:
+        return False, f"SOURCES.md cites claim id(s) not resolved by provenance: {', '.join(unresolved)}"
+
+    summary_text = _read("home-summary.md") or ""
+    leaked = sorted(
+        {
+            k
+            for k in _research_answer_keys(vault, sid)
+            if _contains_answer_key(summary_text, k)
+        }
+    )
+    if leaked:
+        return False, f"home-summary.md leaks teacher-only answer key content: {', '.join(leaked)}"
+
+    return True, f"all 6 bundle file(s) present, {len(sources_doc['_claim_ids'])} claim(s) sourced"
+
+
+# Stages whose presence check is not enough on its own (STEP 9 R1-R4/R5-R8/R9-R10).
+# A stage absent from both dicts below keeps today's filename-glob-only behavior.
 _CONTENT_VALIDATORS: dict[str, Callable[[Path, str, str], tuple[bool, str]]] = {
     "receipts": _gate_validator(receipt_claims.receipt_claims),
     "research": _gate_validator(research_tasks.research_tasks),
@@ -487,12 +662,15 @@ _CONTENT_VALIDATORS: dict[str, Callable[[Path, str, str], tuple[bool, str]]] = {
     "patch": _validate_patch,
     "refuted": _validate_refutation,
     "approved": _validate_approval,
+    "localized": _validate_localization,
 }
 
-# Stages that must be judged as a SET of artifacts, not any one artifact alone
-# (STEP 9 R5): three independent critique lanes only mean something together.
+# Stages that must be judged as a SET of artifacts, not any one artifact alone:
+# three independent critique lanes only mean something together (STEP 9 R5),
+# and the six bundle files only mean something together (STEP 9 R10).
 _COLLECTION_VALIDATORS: dict[str, Callable[[Path, str, list[Path]], tuple[bool, str]]] = {
     "critique": _validate_critique_lanes,
+    "bundle": _validate_bundle_files,
 }
 
 

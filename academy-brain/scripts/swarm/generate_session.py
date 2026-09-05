@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -40,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from swarm import overlay as _overlay  # noqa: E402
 from swarm import paths  # noqa: E402
 from swarm import stage_gate  # noqa: E402
+from swarm.asset_mapping import Asset, parse_asset_mapping  # noqa: E402
 from swarm.gates import REGISTRY as GATE_REGISTRY, UNVERIFIED as GATE_UNVERIFIED  # noqa: E402
 
 # Defaults for standalone/manual runs (`python generate_session.py L1-s1`).
@@ -84,19 +86,6 @@ class Upload:
 
 
 @dataclass
-class Asset:
-    aid: str
-    slide: str
-    path: Path
-    klass: str  # REFERENCE | EVIDENCE
-    status: str
-
-    @property
-    def produced(self) -> bool:
-        return self.status.strip().lower() == "produced and mapped"
-
-
-@dataclass
 class Pass:
     key: str  # deck-a | deck-b | summary
     notebook: str  # notebook title
@@ -108,68 +97,9 @@ class Pass:
 # --------------------------------------------------------------------------
 # ASSET-MAPPING.md — the hard-stop gate, owned by codex
 # --------------------------------------------------------------------------
-
-_COLS = {
-    "aid": ("id", "asset"),
-    # "lands on" is what ASSET-MAPPING.md actually calls this column.
-    "slide": ("slide", "lands", "destination"),
-    "path": ("path", "file"),
-    "klass": ("class",),
-    "status": ("status", "production"),
-}
-
-
-def _header_index(cells: list[str]) -> dict[str, int] | None:
-    """Map our field names onto whatever the table actually called its columns."""
-    lowered = [c.strip().lower() for c in cells]
-    idx: dict[str, int] = {}
-    for field_name, needles in _COLS.items():
-        for i, cell in enumerate(lowered):
-            if any(n in cell for n in needles) and i not in idx.values():
-                idx[field_name] = i
-                break
-    return idx if len(idx) == len(_COLS) else None
-
-
-def _row_cells(line: str) -> list[str]:
-    return [c.strip() for c in line.strip().strip("|").split("|")]
-
-
-def parse_asset_mapping(text: str) -> list[Asset]:
-    """Pull every asset row out of the mapping's markdown tables.
-
-    Column order is not assumed — headers are matched by name, because the file
-    is authored by another agent and its exact shape is not ours to dictate.
-    """
-    assets: list[Asset] = []
-    idx: dict[str, int] | None = None
-    for line in text.splitlines():
-        if not line.strip().startswith("|"):
-            idx = None
-            continue
-        cells = _row_cells(line)
-        if set("".join(cells)) <= set("-: "):  # separator row
-            continue
-        if idx is None:
-            idx = _header_index(cells)
-            continue
-        if len(cells) <= max(idx.values()):
-            continue
-        raw = cells[idx["path"]].strip("`").strip()
-        raw = re.sub(r"^\[|\]\(.*\)$", "", raw)  # unwrap a markdown link
-        if not raw or raw in {"-", "\u2014"}:
-            continue
-        p = Path(raw)
-        assets.append(
-            Asset(
-                aid=cells[idx["aid"]].strip("`"),
-                slide=cells[idx["slide"]],
-                path=p if p.is_absolute() else VAULT / p,
-                klass=cells[idx["klass"]].strip("*` ").upper(),
-                status=cells[idx["status"]],
-            )
-        )
-    return assets
+# `Asset` and `parse_asset_mapping` live in `swarm.asset_mapping` (imported
+# above) so `stage_gate.py` can run the real parser too, instead of a second,
+# looser copy of the same rules.
 
 
 APPROVAL_KINDS: frozenset[str] = frozenset(
@@ -716,6 +646,87 @@ def _pass_execution_lock(out_dir: Path, key: str):
         path.unlink(missing_ok=True)
 
 
+def _pass_fingerprint(ps: Pass) -> str:
+    """SHA256 over exactly what this pass will send: instructions and upload bytes.
+
+    Comparison doc §3.11: bind each generation attempt to a fingerprint of the
+    rendered bundle, upload bytes, assets, and prompt version. `ps.uploads` and
+    `ps.instructions` already ARE those inputs — `build_plan()` assembled them
+    from the bundle, ASSET-MAPPING, and the prompt file — so no separate
+    re-read of the bundle directory is needed here. Length-framed (not raw
+    concatenation) so two different upload sets cannot collide onto the same
+    digest, the same defect fixed in `stage_gate._current_stage_hash`.
+    """
+    digest = hashlib.sha256()
+    instructions = ps.instructions.encode("utf-8")
+    digest.update(len(instructions).to_bytes(8, "big"))
+    digest.update(instructions)
+    for up in sorted(ps.uploads, key=lambda u: u.title):
+        title = up.title.encode("utf-8")
+        content = up.path.read_bytes()
+        digest.update(len(title).to_bytes(8, "big"))
+        digest.update(title)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def _manifest_path(out_dir: Path, key: str) -> Path:
+    return out_dir / f"{key}.input-manifest"
+
+
+def _check_input_freshness(out_dir: Path, ps: Pass) -> None:
+    """Refuse to reuse or resume a pass whose bundle/prompt inputs have moved on.
+
+    Comparison doc §3.11: on a mismatch, stop with a plain reason before
+    spending quota — do not silently delete notebook sources, reset the task
+    lock, or overwrite existing output.
+
+    A pass with no manifest predates this check (STEP 9 §3.11, 2026-09-05).
+    Matching `stage_gate.is_locked()`'s "doctrine does not run backwards", a
+    pass that has done no work yet (no output, no in-flight task) is
+    grandfathered by adopting its current fingerprint as the baseline — there
+    is no prior state for it to have drifted from. A pass that already has
+    output or an in-flight task and STILL has no manifest is a different,
+    riskier case: silently adopting "whatever the inputs are right now" as
+    its baseline would let a bundle edit made *while the task was pending*
+    pass as "unchanged" — defeating the exact protection this check exists
+    to add, for precisely the sessions most likely to be affected right at
+    rollout. That case hard-stops instead and asks for a one-time explicit
+    baseline, rather than silently trusting an unverifiable "now".
+
+    Isolating a deliberately new attempt under its own notebook/output
+    identity, once one is authorized, is explicitly future work (comparison
+    doc §3.11) and is not done here.
+    """
+    path = _manifest_path(out_dir, ps.key)
+    current = _pass_fingerprint(ps)
+    if path.is_file():
+        recorded = path.read_text(encoding="utf-8").strip()
+        if recorded != current:
+            raise HardStop(
+                f"{ps.key}: bundle/prompt inputs changed since this pass's last attempt "
+                f"(input manifest at {path} no longer matches). Stopping before spending "
+                "quota. This does not delete notebook sources, reset the task lock, or "
+                "touch existing output — inspect the change, then explicitly decide "
+                "whether to start a new attempt."
+            )
+        return
+
+    started = (out_dir / f"{ps.key}.pdf").is_file() or (out_dir / f"{ps.key}.task_id").is_file()
+    if started:
+        raise HardStop(
+            f"{ps.key}: no input manifest exists yet, but this pass already has prior "
+            f"work on disk (output and/or an in-flight task). It predates the §3.11 "
+            f"freshness check, so its original inputs were never recorded and staleness "
+            f"cannot be verified automatically. Stopping before spending quota. Confirm "
+            f"the current bundle/prompt inputs are the ones this pass should use, then "
+            f"record its baseline once by writing {current} to {path}."
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(current, encoding="utf-8")
+
+
 async def _run_pass(client, ps: Pass, out_dir: Path, notebooks: dict[str, str]) -> dict:
     from notebooklm import SlideDeckFormat
 
@@ -744,6 +755,10 @@ async def _run_pass(client, ps: Pass, out_dir: Path, notebooks: dict[str, str]) 
         raise HardStop(f"sources not READY: {', '.join(not_ready)}")
 
     with _pass_execution_lock(out_dir, ps.key):
+        # §3.11 freshness gate: refuse a stale skip/resume/fresh-start before any
+        # of the three branches below act on this pass's disk state.
+        _check_input_freshness(out_dir, ps)
+
         # A finished pass is never regenerated. Quota is daily and small; a rerun
         # after one pass of three failed must not spend a slot on work already done.
         done = out_dir / f"{ps.key}.pdf"
@@ -1174,9 +1189,17 @@ async def _demo_run_pass() -> None:
 
     ps = Pass(key="deck-a", notebook="nb-title", instructions="do it")
 
+    def _seed_manifest(out_dir: Path) -> None:
+        """Scenarios below pre-seed a task_id/pdf to model a pass already mid-flight
+        UNDER §3.11 doctrine, not a legacy pre-doctrine pass — so they need a matching
+        baseline manifest, same as a real in-doctrine pass would already have. The
+        legacy no-manifest case has its own dedicated scenario (8b)."""
+        _manifest_path(out_dir, ps.key).write_text(_pass_fingerprint(ps), encoding="utf-8")
+
     # 1. an existing sidecar with a real task_id resumes instead of regenerating
     with tempfile.TemporaryDirectory() as td:
         out_dir = Path(td)
+        _seed_manifest(out_dir)
         _save_task_state(out_dir / "deck-a.task_id", _TaskState(notebook_id="nb-1", task_id="old-task"))
         art = _FakeArtifacts(download_error=ArtifactNotReadyError("slide_deck", artifact_id="old-task"))
         client = _FakeClient(art)
@@ -1192,6 +1215,7 @@ async def _demo_run_pass() -> None:
     # 2. sidecar recorded a different notebook_id than the one this run resolved
     with tempfile.TemporaryDirectory() as td:
         out_dir = Path(td)
+        _seed_manifest(out_dir)
         _save_task_state(out_dir / "deck-a.task_id", _TaskState(notebook_id="nb-OLD", task_id="stale-task"))
         art = _FakeArtifacts()
         client = _FakeClient(art)
@@ -1206,6 +1230,7 @@ async def _demo_run_pass() -> None:
     # 3. a corrupt sidecar must not be silently treated as resumable or regenerated over
     with tempfile.TemporaryDirectory() as td:
         out_dir = Path(td)
+        _seed_manifest(out_dir)
         (out_dir / "deck-a.task_id").write_text("", encoding="utf-8")
         art = _FakeArtifacts()
         client = _FakeClient(art)
@@ -1245,6 +1270,7 @@ async def _demo_run_pass() -> None:
     # a second concurrent resume of an already-existing sidecar
     with tempfile.TemporaryDirectory() as td:
         out_dir = Path(td)
+        _seed_manifest(out_dir)
         _save_task_state(out_dir / "deck-a.task_id", _TaskState(notebook_id="nb-1", task_id="in-flight"))
         (out_dir / "deck-a.lock").touch()
         art = _FakeArtifacts()
@@ -1288,6 +1314,7 @@ async def _demo_run_pass() -> None:
     # interleaving needs real concurrency, not just a fake client
     with tempfile.TemporaryDirectory() as td:
         out_dir = Path(td)
+        _seed_manifest(out_dir)
         import fitz as _fitz
 
         _doc = _fitz.open()
@@ -1344,6 +1371,78 @@ async def _demo_run_pass() -> None:
         assert art.download_calls == 2, "recovery must re-download rather than trust the stale local PDF"
         assert result["task_id"] == "fresh-task-id"
         assert not (out_dir / "deck-a.task_id").exists(), "sidecar is cleaned up once recovery composites successfully"
+
+    # 8. §3.11 — a pass with no manifest and no prior work is grandfathered
+    # (baseline written, no hard-stop), and an unchanged rerun proceeds; changed
+    # instructions since the recorded baseline hard-stop BEFORE any quota is
+    # spent; a pass with no manifest but PRIOR work already on disk (the
+    # legacy-pending case) hard-stops too, instead of silently adopting
+    # today's inputs as if they were the ones the pending task started with
+    with tempfile.TemporaryDirectory() as td:
+        out_dir = Path(td)
+
+        class _CompleteStatus3:
+            status = "completed"
+            error = None
+            is_failed = False
+            is_removed = False
+            is_not_found = False
+
+        art = _FakeArtifacts(gen_status=_CompleteStatus3())
+        client = _FakeClient(art)
+        result = await _run_pass(client, ps, out_dir, {"nb-title": "nb-1"})
+        assert art.generate_calls == 1, "first-ever attempt is grandfathered, not blocked"
+        manifest = out_dir / "deck-a.input-manifest"
+        assert manifest.is_file(), "a baseline manifest must be recorded on first use"
+        recorded = manifest.read_text(encoding="utf-8")
+
+        # an unchanged rerun (new pdf/sidecar cycle, same inputs) matches the baseline
+        (out_dir / "deck-a.pdf").unlink()
+        result = await _run_pass(client, ps, out_dir, {"nb-title": "nb-1"})
+        assert art.generate_calls == 2
+        assert manifest.read_text(encoding="utf-8") == recorded, "matching inputs must not rewrite the manifest"
+
+        # changed instructions since the recorded baseline must hard-stop before
+        # any of the three branches act, and must not touch existing state
+        (out_dir / "deck-a.pdf").unlink()
+        changed = Pass(key="deck-a", notebook="nb-title", instructions="do it DIFFERENTLY")
+        try:
+            await _run_pass(client, changed, out_dir, {"nb-title": "nb-1"})
+        except HardStop as exc:
+            assert "input manifest" in str(exc) and "no longer matches" in str(exc), exc
+        else:  # pragma: no cover
+            raise AssertionError("a changed pass did not hard-stop on a stale manifest")
+        assert art.generate_calls == 2, "a manifest mismatch must not spend quota"
+        assert manifest.read_text(encoding="utf-8") == recorded, "a mismatch must not overwrite the recorded baseline"
+        assert not (out_dir / "deck-a.task_id").exists(), "a manifest mismatch must not create a task lock sidecar"
+
+    # 8b. §3.11 legacy case — no manifest, but prior work (an in-flight task
+    # sidecar or output) already exists on disk. Each must hard-stop rather than
+    # silently adopting today's inputs as the prior work's baseline.
+    for prior_work_name in ("deck-a.task_id", "deck-a.pdf"):
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            prior_work = out_dir / prior_work_name
+            prior_work.write_text("pre-existing prior work", encoding="utf-8")
+
+            art = _FakeArtifacts(gen_status=_CompleteStatus3())
+            client = _FakeClient(art)
+            try:
+                await _run_pass(client, ps, out_dir, {"nb-title": "nb-1"})
+            except HardStop as exc:
+                message = str(exc)
+                expected_fingerprint = _pass_fingerprint(ps)
+                assert "no input manifest exists yet" in message and "prior work" in message, exc
+                assert f"writing {expected_fingerprint} to" in message, exc
+            else:  # pragma: no cover
+                raise AssertionError(f"legacy prior work {prior_work_name} without a manifest did not hard-stop")
+            assert art.generate_calls == 0, "legacy prior work must not spend quota"
+            assert not (out_dir / "deck-a.input-manifest").exists(), (
+                "a hard-stop must not silently write a baseline manifest"
+            )
+            assert prior_work.read_text(encoding="utf-8") == "pre-existing prior work", (
+                "a hard-stop must not touch existing prior work"
+            )
 
 
 # --------------------------------------------------------------------------
@@ -1406,7 +1505,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         enforce_stage_chain(sid)
-        assets = parse_asset_mapping(mapping.read_text(encoding="utf-8"))
+        assets = parse_asset_mapping(mapping.read_text(encoding="utf-8"), vault=VAULT)
         enforce_blueprint_gate(bundle / "blueprint.md")
         enforce_asset_gate(assets)
         reconcile_slides(bundle, assets)
