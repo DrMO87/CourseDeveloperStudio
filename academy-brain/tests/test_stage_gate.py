@@ -15,6 +15,70 @@ def vault(tmp_path):
     return tmp_path
 
 
+# STEP 9 R1-R4: these four stages now require real structural content, not
+# just a present file. "C1" is shared between RECEIPTS_CONTENT and
+# PROVENANCE_CONTENT so a test that writes both gets a resolving trace.
+RECEIPTS_CONTENT = yaml.safe_dump(
+    {
+        "kind": "specialist-receipt",
+        "claims": [
+            {
+                "id": "C1",
+                "statement": "fixture claim",
+                "source": "fixture-source",
+                "locator": "page:1",
+                "excerpt": "fixture excerpt",
+            }
+        ],
+        "holes": [],
+    }
+)
+RESEARCH_CONTENT = (
+    "# Research\n\n```yaml\n"
+    + yaml.safe_dump(
+        {
+            "objective": "O1",
+            "tasks": [
+                {"id": "A1", "prompt": "fixture task", "key": "K1", "cites": ["C1"]}
+            ],
+        }
+    )
+    + "```\n"
+)
+DIGEST_CONTENT = (
+    "# L1-s1\n\n```yaml\n"
+    + yaml.safe_dump(
+        {
+            "kind": "digest-synthesis",
+            "explanation": "This fixture explanation has enough words to pass the length check.",
+            "claims": ["C1"],
+            "holes": [],
+        }
+    )
+    + "```\n"
+)
+PROVENANCE_CONTENT = yaml.safe_dump(
+    {
+        "kind": "provenance-map",
+        "links": [
+            {
+                "claim": "C1",
+                "source": "fixture-source",
+                "revision": "fixture-rev",
+                "locator": "page:1",
+                "excerpt": "fixture excerpt",
+            }
+        ],
+    }
+)
+_STRUCTURED_CONTENT = {
+    "receipts": RECEIPTS_CONTENT,
+    "research": RESEARCH_CONTENT,
+    "digest": DIGEST_CONTENT,
+    "provenance": PROVENANCE_CONTENT,
+}
+
+
 def _evidence(vault, sid, *stages):
     """Write the minimum artifact that satisfies each named stage."""
     for name in stages:
@@ -23,7 +87,7 @@ def _evidence(vault, sid, *stages):
         rel = rel.replace("*", "x")
         path = vault / stage.directory / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("evidence", encoding="utf-8")
+        path.write_text(_STRUCTURED_CONTENT.get(name, "evidence"), encoding="utf-8")
 
 
 def _waiver(vault, sid, stage_name, **fields):
@@ -58,6 +122,115 @@ def test_only_predecessors_are_checked(vault):
     assert [r["stage"] for r in stage_gate.check(vault, "L1-s1", "research", TODAY)] == [
         "receipts"
     ]
+
+
+# --- STEP 9 R1-R4: presence is no longer enough for these four stages -------
+
+
+@pytest.mark.parametrize("stage_name", ["receipts", "research", "digest", "provenance"])
+def test_placeholder_text_no_longer_satisfies_these_stages(vault, stage_name):
+    """The exact defect this batch exists to close: a present-but-empty file used to pass."""
+    stage = stage_gate._BY_NAME[stage_name]
+    rel = stage.pattern.format(sid="L1-s1", level="1").replace("*", "x")
+    path = vault / stage.directory / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("evidence", encoding="utf-8")
+
+    ok, detail = stage_gate.check_stage(vault, stage, "L1-s1", TODAY)
+    assert not ok, detail
+    assert "content validation" in detail
+
+
+@pytest.mark.parametrize("stage_name", ["receipts", "research", "digest"])
+def test_structured_content_satisfies_these_stages(vault, stage_name):
+    _evidence(vault, "L1-s1", "receipts")  # provenance's sibling; harmless for the other three
+    _evidence(vault, "L1-s1", stage_name)
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME[stage_name], "L1-s1", TODAY)
+    assert ok, detail
+
+
+def test_provenance_resolves_against_the_specialist_receipt(vault):
+    _evidence(vault, "L1-s1", "receipts", "provenance")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["provenance"], "L1-s1", TODAY)
+    assert ok, detail
+    assert "resolved" in detail
+
+
+def test_provenance_fails_without_a_matching_receipt(vault):
+    """Provenance alone, with no specialist receipt to trace its claim to."""
+    _evidence(vault, "L1-s1", "provenance")
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["provenance"], "L1-s1", TODAY)
+    assert not ok
+    assert "no valid specialist receipt" in detail
+
+
+def test_provenance_rejects_a_claim_the_receipt_never_made(vault):
+    other_receipt = yaml.safe_dump(
+        {
+            "kind": "specialist-receipt",
+            "claims": [
+                {
+                    "id": "C9",
+                    "statement": "a different claim",
+                    "source": "s",
+                    "locator": "page:1",
+                    "excerpt": "x",
+                }
+            ],
+        }
+    )
+    (vault / "90-receipts" / "L1-s1.specialist.yaml").write_text(other_receipt, encoding="utf-8")
+    (vault / "20-provenance" / "L1-s1.md").write_text(PROVENANCE_CONTENT, encoding="utf-8")
+
+    ok, detail = stage_gate.check_stage(vault, stage_gate._BY_NAME["provenance"], "L1-s1", TODAY)
+    assert not ok
+    assert "C1" in detail
+
+
+def test_provenance_skips_ordinary_receipts_before_the_specialist_receipt(vault):
+    ordinary = {"id": "L1-s1", "overall": "PASS", "gates": []}
+    (vault / "90-receipts" / "L1-s1.000-gates.yaml").write_text(
+        yaml.safe_dump(ordinary), encoding="utf-8"
+    )
+    (vault / "90-receipts" / "L1-s1.specialist.yaml").write_text(
+        RECEIPTS_CONTENT, encoding="utf-8"
+    )
+    (vault / "20-provenance" / "L1-s1.md").write_text(
+        PROVENANCE_CONTENT, encoding="utf-8"
+    )
+
+    ok, detail = stage_gate.check_stage(
+        vault, stage_gate._BY_NAME["provenance"], "L1-s1", TODAY
+    )
+    assert ok, detail
+
+
+def test_invalid_artifact_does_not_suppress_a_valid_waiver(vault):
+    (vault / "10-digest" / "L1-s1.md").write_text("extraction only", encoding="utf-8")
+    _waiver(
+        vault,
+        "L1-s1",
+        "digest",
+        reason="not-applicable",
+        authority="owner",
+        scope="session",
+        granted=dt.date(2026, 8, 31),
+    )
+
+    ok, detail = stage_gate.check_stage(
+        vault, stage_gate._BY_NAME["digest"], "L1-s1", TODAY
+    )
+    assert ok
+    assert "waived" in detail
+
+
+def test_non_utf8_artifact_fails_closed_without_crashing(vault):
+    (vault / "10-digest" / "L1-s1.md").write_bytes(b"\xff\xfe")
+    ok, detail = stage_gate.check_stage(
+        vault, stage_gate._BY_NAME["digest"], "L1-s1", TODAY
+    )
+    assert not ok
+    assert "could not read" in detail
 
 
 # --- waivers must be structured, authorized, and expiring -------------------
@@ -184,7 +357,7 @@ def test_a_session_scoped_waiver_is_refused_for_a_level_stage(vault):
 def test_research_from_another_level_is_not_evidence(vault):
     """The hole in the original `*.md` glob: any level's research satisfied any level."""
     (vault / "30-research" / "L1").mkdir(parents=True, exist_ok=True)
-    (vault / "30-research" / "L1" / "T01.md").write_text("evidence", encoding="utf-8")
+    (vault / "30-research" / "L1" / "T01.md").write_text(RESEARCH_CONTENT, encoding="utf-8")
     research = stage_gate._BY_NAME["research"]
     assert stage_gate.check_stage(vault, research, "L1-s1", TODAY)[0]
     assert not stage_gate.check_stage(vault, research, "L2-s1", TODAY)[0]

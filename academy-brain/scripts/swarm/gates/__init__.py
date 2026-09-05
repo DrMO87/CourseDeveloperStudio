@@ -48,5 +48,9 @@ from swarm.gates import (  # noqa: E402,F401
     boundary_check,
     brand_palette,
     cite_filter,
+    digest_synthesis,
     pedagogy_coverage,
+    provenance_map,
+    receipt_claims,
+    research_tasks,
 )

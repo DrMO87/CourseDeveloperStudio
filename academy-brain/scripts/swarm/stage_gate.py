@@ -14,6 +14,12 @@ that asks for a justification is not a gate; this file is the gate.
 
 Scope note: this checks that evidence EXISTS and that waivers are VALID. It does
 not check that evidence is fresh relative to its predecessor.
+
+STEP 9 R1-R4 (2026-09-05): receipts, research, digest, and provenance used to
+be satisfied by any file matching the glob, regardless of content — a session
+could enter bundle on four empty-but-present files. Those four stages now
+also run a structural content check (see `_CONTENT_VALIDATORS` below); the
+other stages are unchanged pending their own batch.
 """
 
 from __future__ import annotations
@@ -24,15 +30,19 @@ import filecmp
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
+from .gates import PASS as GATE_PASS
+from .gates import digest_synthesis, provenance_map, receipt_claims, research_tasks
 from .paths import validate_session_id
 
 # Bumped when the stage chain or the waiver contract changes in a way that would
 # alter a verdict. Stamped into every receipt so a later doctrine change can
 # never silently reinterpret an artifact that passed under earlier rules.
-DOCTRINE_VERSION = 2
+# 2 -> 3: receipts/research/digest/provenance gained content validation (STEP 9 R1-R4).
+DOCTRINE_VERSION = 3
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -168,13 +178,89 @@ def read_waiver(path: Path, today: _dt.date, expected_scope: str) -> tuple[bool,
     return True, f"waived: {reason} by {doc['authority']}"
 
 
+def _find_specialist_receipt(vault: Path, sid: str) -> dict | None:
+    """Locate this session's specialist receipt among its 90-receipts/ files.
+
+    `90-receipts/` also holds gate and production receipts written by other
+    code; only a file that parses as a specialist receipt counts here.
+    """
+    stage = _BY_NAME["receipts"]
+    pattern = stage.pattern.format(sid=sid, level=_level_of(sid))
+    for candidate in sorted((vault / stage.directory).glob(pattern)):
+        if not candidate.is_file() or ".waiver." in candidate.name:
+            continue
+        try:
+            return receipt_claims.parse_receipt(candidate.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+    return None
+
+
+def _validate_provenance(vault: Path, sid: str, text: str) -> tuple[bool, str]:
+    """Provenance must parse AND every claim it cites must resolve to a real receipt claim."""
+    try:
+        doc = provenance_map.parse_provenance(text)
+    except ValueError as exc:
+        return False, str(exc)
+    receipt = _find_specialist_receipt(vault, sid)
+    if receipt is None:
+        return False, "provenance links exist but no valid specialist receipt was found to trace them to"
+    unresolved = [cid for cid in doc["_claim_ids"] if cid not in receipt["_claim_ids"]]
+    if unresolved:
+        return False, f"provenance cites claim id(s) not in the specialist receipt: {', '.join(unresolved)}"
+    return True, f"{len(doc['_claim_ids'])} claim(s) traced and resolved against the specialist receipt"
+
+
+def _gate_validator(fn) -> Callable[[Path, str, str], tuple[bool, str]]:
+    """Adapt a `swarm.gates` text->GateResult function to a (vault, sid, text) validator."""
+
+    def run(_vault: Path, _sid: str, text: str) -> tuple[bool, str]:
+        result = fn(text)
+        return result.verdict == GATE_PASS, result.detail
+
+    return run
+
+
+# Stages whose presence check is not enough on its own (STEP 9 R1-R4). A stage
+# absent from this dict keeps today's filename-glob-only behavior.
+_CONTENT_VALIDATORS: dict[str, Callable[[Path, str, str], tuple[bool, str]]] = {
+    "receipts": _gate_validator(receipt_claims.receipt_claims),
+    "research": _gate_validator(research_tasks.research_tasks),
+    "digest": _gate_validator(digest_synthesis.digest_synthesis),
+    "provenance": _validate_provenance,
+}
+
+
 def check_stage(vault: Path, stage: Stage, sid: str, today: _dt.date) -> tuple[bool, str]:
     """Is this one stage satisfied for this session — by evidence or by waiver?"""
     pattern = stage.pattern.format(sid=sid, level=_level_of(sid))
     directory = vault / stage.directory
-    hits = [p for p in directory.glob(pattern) if p.is_file() and ".waiver." not in p.name]
+    hits = sorted(
+        p for p in directory.glob(pattern) if p.is_file() and ".waiver." not in p.name
+    )
     if hits:
-        return True, f"{len(hits)} artifact(s) at {stage.directory}/{pattern}"
+        validator = _CONTENT_VALIDATORS.get(stage.name)
+        if validator is None:
+            return True, f"{len(hits)} artifact(s) at {stage.directory}/{pattern}"
+        last_detail = ""
+        for candidate in hits:
+            try:
+                text = candidate.read_text(encoding="utf-8")
+            except (OSError, UnicodeError) as exc:
+                last_detail = f"{candidate.name}: could not read ({exc})"
+                continue
+            ok, detail = validator(vault, sid, text)
+            if ok:
+                return True, f"{candidate.name}: {detail}"
+            last_detail = f"{candidate.name}: {detail}"
+        failed_detail = (
+            f"{len(hits)} artifact(s) at {stage.directory}/{pattern} but none pass "
+            f"content validation; last: {last_detail}"
+        )
+        wp = waiver_path(vault, stage, sid)
+        if wp.is_file():
+            return read_waiver(wp, today, stage.scope)
+        return False, failed_detail
 
     wp = waiver_path(vault, stage, sid)
     if wp.is_file():
