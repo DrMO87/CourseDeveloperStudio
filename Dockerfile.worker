@@ -38,7 +38,19 @@ COPY academy-brain/ .
 WORKDIR /app
 COPY --from=dotnet-build /app/publish .
 
+# STEP 11 Phase B, Batch 2/3: every side-channel script CourseDeveloper.Infrastructure's
+# subprocess adapters shell out to (PythonPdfTextExtractor, PythonPdfColorExtractor,
+# PythonPedagogyCoverageEvaluator, PythonNblmPromptPreflightEvaluator, PythonNblmPromptRenderer)
+# needs its own explicit path here — each adapter fails closed (throws at construction) if its
+# env var is unset, so an omission here would only surface once an organization enables the
+# corresponding gate, not at build/start time (found by Codex review: Batch 2's two PDF paths
+# were already missing before Batch 3 added three more of the same pattern).
 ENV ACADEMY_BRAIN_SCRIPT_PATH=/academy-brain/scripts/swarm/generate_session.py \
+    ACADEMY_BRAIN_PDF_TEXT_SCRIPT_PATH=/academy-brain/scripts/swarm/extract_pdf_text.py \
+    ACADEMY_BRAIN_PDF_COLOR_SCRIPT_PATH=/academy-brain/scripts/swarm/extract_pdf_colors.py \
+    ACADEMY_BRAIN_PEDAGOGY_SCRIPT_PATH=/academy-brain/scripts/swarm/evaluate_pedagogy_coverage.py \
+    ACADEMY_BRAIN_NBLM_PREFLIGHT_SCRIPT_PATH=/academy-brain/scripts/swarm/evaluate_nblm_prompt_preflight.py \
+    ACADEMY_BRAIN_NBLM_RENDER_SCRIPT_PATH=/academy-brain/scripts/swarm/nblm_prompt_template.py \
     GENERATION_WORKER_PYTHON_EXECUTABLE=/academy-brain/.venv/bin/python
 
 ARG STUDIO_COMMIT_SHA=unknown

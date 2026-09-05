@@ -48,6 +48,7 @@ public class NpgsqlGenerationJobRepository : IGenerationJobRepository
             ResultManifest = reader.IsDBNull(reader.GetOrdinal("result_manifest")) ? null : JsonSerializer.Deserialize<Dictionary<string, object>>(reader.GetString(reader.GetOrdinal("result_manifest")), _jsonOptions),
             ErrorDetails = reader.IsDBNull(reader.GetOrdinal("error_details")) ? null : JsonSerializer.Deserialize<Dictionary<string, object>>(reader.GetString(reader.GetOrdinal("error_details")), _jsonOptions),
             Progress = JsonSerializer.Deserialize<Dictionary<string, object>>(reader.GetString(reader.GetOrdinal("progress")), _jsonOptions) ?? new(),
+            NextAttemptAt = reader.IsDBNull(reader.GetOrdinal("next_attempt_at")) ? null : reader.GetDateTime(reader.GetOrdinal("next_attempt_at")),
             CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
             UpdatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"))
         };
@@ -131,11 +132,13 @@ public class NpgsqlGenerationJobRepository : IGenerationJobRepository
                 lease_expires_at = now() + @leaseSeconds * interval '1 second',
                 heartbeat_at = now(),
                 attempt_count = attempt_count + 1,
+                next_attempt_at = NULL,
                 updated_at = now()
             WHERE id = (
                 SELECT id FROM generation_job candidate
                 WHERE candidate.status IN ('queued', 'retryable')
                   AND candidate.cancel_requested = false
+                  AND (candidate.next_attempt_at IS NULL OR candidate.next_attempt_at <= now())
                   AND candidate.project_id NOT IN (
                       SELECT project_id FROM generation_job
                       WHERE status IN ('claimed', 'running', 'merging', 'overlaying', 'reviewing')
@@ -258,6 +261,65 @@ public class NpgsqlGenerationJobRepository : IGenerationJobRepository
             throw new InvalidOperationException($"Cannot fail generation job {jobId}: ownership or lease was lost.");
         }
         await AppendEventAsync(jobId, status, errorDetails);
+    }
+
+    public async Task PersistContentQualityProgressAsync(
+        Guid jobId,
+        string workerId,
+        Dictionary<string, object> progress)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync();
+        await using var cmd = new NpgsqlCommand(
+            @"UPDATE generation_job
+              SET progress = @progress::jsonb, updated_at = now()
+              WHERE id = @id AND claimed_by = @workerId AND status IN ('claimed', 'running')", conn);
+        cmd.Parameters.AddWithValue("id", jobId);
+        cmd.Parameters.AddWithValue("workerId", workerId);
+        cmd.Parameters.AddWithValue("progress", JsonSerializer.Serialize(progress, _jsonOptions));
+
+        if (await cmd.ExecuteNonQueryAsync() != 1)
+        {
+            throw new InvalidOperationException(
+                $"Cannot persist content-quality progress for generation job {jobId}: ownership or lease was lost.");
+        }
+    }
+
+    // STEP 11: dedicated reschedule path for content-quality cascade exhaustion. Unlike
+    // FailAsync, this NEVER terminates the job as 'failed' regardless of AttemptCount vs
+    // MaxAttempts — Standing Rule 10a requires an honest "still working" state, not a
+    // fake/generic result and not a dead job. cancel_requested still wins so a user
+    // cancellation is never overridden by a stale in-flight cascade decision.
+    public async Task RescheduleContentQualityAsync(
+        Guid jobId,
+        string workerId,
+        Dictionary<string, object> progress,
+        DateTime nextAttemptAt,
+        Dictionary<string, object>? errorDetails = null)
+    {
+        errorDetails ??= new Dictionary<string, object>();
+
+        await using var conn = await _dataSource.OpenConnectionAsync();
+        await using var cmd = new NpgsqlCommand(
+            @"UPDATE generation_job
+              SET status = CASE WHEN cancel_requested THEN 'canceled'::generation_job_status ELSE 'retryable'::generation_job_status END,
+                  progress = @progress::jsonb,
+                  error_details = @errorDetails::jsonb,
+                  next_attempt_at = CASE WHEN cancel_requested THEN NULL ELSE @nextAttemptAt END,
+                  claimed_by = NULL, claimed_at = NULL, lease_expires_at = NULL,
+                  updated_at = now()
+              WHERE id = @id AND claimed_by = @workerId AND status IN ('claimed', 'running')
+              RETURNING status::text", conn);
+        cmd.Parameters.AddWithValue("id", jobId);
+        cmd.Parameters.AddWithValue("workerId", workerId);
+        cmd.Parameters.AddWithValue("progress", JsonSerializer.Serialize(progress, _jsonOptions));
+        cmd.Parameters.AddWithValue("nextAttemptAt", nextAttemptAt);
+        cmd.Parameters.AddWithValue("errorDetails", JsonSerializer.Serialize(errorDetails, _jsonOptions));
+        var status = (string?)await cmd.ExecuteScalarAsync();
+        if (status is null)
+        {
+            throw new InvalidOperationException($"Cannot reschedule generation job {jobId} for content-quality retry: ownership or lease was lost.");
+        }
+        await AppendEventAsync(jobId, status == "canceled" ? "canceled" : "content_quality_rescheduled", errorDetails);
     }
 
     public async Task<bool> CancelAsync(Guid jobId, string workerId)

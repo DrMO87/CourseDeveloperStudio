@@ -319,6 +319,14 @@ alter table public.course_projects
     add column if not exists academic_term text,
     add column if not exists total_sessions int;
 
+-- STEP 11: ClaimNextAsync's WHERE clause had no backoff check at all — a job that went
+-- 'retryable' was eligible for immediate re-claim on the very next poll. Standing Rule
+-- 10a requires content-quality exhaustion to be "rescheduled automatically with
+-- backoff," so this column gates that. Null (the default, and every pre-existing row)
+-- means immediately eligible, matching today's behavior exactly.
+alter table public.generation_job
+    add column if not exists next_attempt_at timestamptz;
+
 -- One worker may own a (course, session, operation) idempotency key at a time (STEP 4
 -- constraint): only one non-terminal job per key may exist. A partial unique index (not a
 -- table-wide constraint) so retried/completed history keeps its own rows instead of
@@ -373,6 +381,51 @@ grant usage on schema public to generation_worker;
 grant usage on type public.generation_job_status to generation_worker;
 grant select, insert, update, delete on public.generation_job to generation_worker;
 grant select, insert, update, delete on public.generation_job_event to generation_worker;
+
+-- STEP 11: the worker previously had no grants at all outside generation_job/
+-- generation_job_event, so IQualityGateRunner and its repositories could never run
+-- inside CourseDeveloper.Worker (see docs/tickets/handoffs/step11-nblm-prompt-authoring.md,
+-- "What exists today"). Gate evaluation needs these tenant tables, but the shared worker
+-- role must only see rows belonging to a job that is currently in flight. The worker
+-- role is shared across processes, so this is an active-job tenant boundary rather than
+-- a per-worker identity boundary.
+create policy "generation_worker read active job projects" on public.course_projects for select to generation_worker using (
+    id in (select project_id from public.generation_job where status in ('claimed', 'running', 'merging', 'overlaying', 'reviewing'))
+);
+create policy "generation_worker read active job sessions" on public.course_sessions for select to generation_worker using (
+    id in (select session_id from public.generation_job where status in ('claimed', 'running', 'merging', 'overlaying', 'reviewing'))
+);
+create policy "generation_worker read active job organizations" on public.organizations for select to generation_worker using (
+    id in (select organization_id from public.course_projects)
+);
+create policy "generation_worker read active job gate definitions" on public.quality_gate_definitions for select to generation_worker using (
+    organization_id in (select organization_id from public.course_projects)
+);
+create policy "generation_worker read active job receipts" on public.quality_receipts for select to generation_worker using (
+    project_id in (select id from public.course_projects)
+    and session_id in (select id from public.course_sessions)
+);
+create policy "generation_worker insert active job receipts" on public.quality_receipts for insert to generation_worker with check (
+    project_id in (select id from public.course_projects)
+    and session_id in (select id from public.course_sessions)
+);
+create policy "generation_worker read active job gate results" on public.quality_gate_results for select to generation_worker using (
+    receipt_id in (select id from public.quality_receipts)
+);
+create policy "generation_worker insert active job gate results" on public.quality_gate_results for insert to generation_worker with check (
+    receipt_id in (select id from public.quality_receipts)
+);
+create policy "generation_worker read active job session assets" on public.session_assets for select to generation_worker using (
+    session_id in (select id from public.course_sessions)
+);
+
+grant select on public.course_projects to generation_worker;
+grant select on public.course_sessions to generation_worker;
+grant select on public.organizations to generation_worker;
+grant select on public.quality_gate_definitions to generation_worker;
+grant select, insert on public.quality_receipts to generation_worker;
+grant select, insert on public.quality_gate_results to generation_worker;
+grant select on public.session_assets to generation_worker;
 
 -- 14. NotebookLM credential store (STEP 6) — reuses Supabase's built-in Vault
 -- (pgsodium-encrypted secrets in Postgres) instead of introducing a new secret-manager

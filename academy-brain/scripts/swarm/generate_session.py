@@ -31,8 +31,10 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
-from contextlib import contextmanager
+import time
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -727,7 +729,68 @@ def _check_input_freshness(out_dir: Path, ps: Pass) -> None:
     path.write_text(current, encoding="utf-8")
 
 
-async def _run_pass(client, ps: Pass, out_dir: Path, notebooks: dict[str, str]) -> dict:
+@contextmanager
+def _prepare_regeneration(out_dir: Path, ps: Pass):
+    """Last-resort content-quality regeneration's pre-flight (STEP 11 Phase B, Batch 2):
+    quarantine the rejected `<key>.pdf` so `_run_pass` starts a genuinely fresh attempt
+    for exactly this one pass, never all three.
+
+    docs/tickets/handoffs/step11-nblm-prompt-authoring.md, "The new integration point":
+    this operation must (1) preserve/quarantine the rejected artifact — never delete it,
+    (2) prove no NotebookLM task is still in flight for this pass, and (3) let a fresh
+    real task get created for only this pass. `_run_pass` already owns every bit of that
+    task-lifecycle logic (`.lock` for concurrent-caller exclusion, `.task_id` for
+    resumable-vs-fresh, §3.11 freshness manifest) — this function does not reimplement
+    any of it. The context retains that same pass lock through the caller's fresh run,
+    preventing another ordinary or regeneration invocation from entering after quarantine.
+    """
+    key = ps.key
+    with _pass_execution_lock(out_dir, key):
+        task_id_path = out_dir / f"{key}.task_id"
+        if task_id_path.is_file():
+            raise HardStop(
+                f"{key}: {task_id_path} exists — a NotebookLM task may still be in flight or "
+                "crash-resumable for this pass. Regeneration must prove nothing is in flight "
+                "before firing a new task; a plain rerun (without --regenerate-pass) will "
+                "resume or report that task's real status instead of duplicating it."
+            )
+
+        done = out_dir / f"{key}.pdf"
+        if not done.is_file():
+            raise HardStop(
+                f"{key}: no existing {done} to regenerate — this is a last-resort operation "
+                "for a pass that already produced a rejected artifact, not a way to run the "
+                "first attempt. Run without --regenerate-pass for that."
+            )
+
+        # Check while the rejected PDF still proves prior work exists. Moving it
+        # first would let a legacy pass with no manifest look unstarted and silently
+        # adopt today's inputs as its unverifiable historical baseline.
+        _check_input_freshness(out_dir, ps)
+
+        quarantine_dir = out_dir / ".quarantine"
+        quarantine_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = int(time.time())
+        quarantined = quarantine_dir / f"{key}-{timestamp}.pdf"
+        suffix = 1
+        while quarantined.exists():
+            quarantined = quarantine_dir / f"{key}-{timestamp}-{suffix}.pdf"
+            suffix += 1
+        shutil.move(str(done), str(quarantined))
+        try:
+            yield quarantined
+        except BaseException:
+            # If no task was ever claimed, the fresh attempt never became remotely
+            # observable. Restore the rejected artifact so a readiness/preflight
+            # refusal does not strand it in quarantine and make retries impossible.
+            if not task_id_path.exists() and not done.exists() and quarantined.exists():
+                shutil.move(str(quarantined), str(done))
+            raise
+
+
+async def _run_pass(
+    client, ps: Pass, out_dir: Path, notebooks: dict[str, str], *, pass_lock_held: bool = False
+) -> dict:
     from notebooklm import SlideDeckFormat
 
     nb_id = notebooks.get(ps.notebook)
@@ -754,7 +817,8 @@ async def _run_pass(client, ps: Pass, out_dir: Path, notebooks: dict[str, str]) 
     if not_ready:
         raise HardStop(f"sources not READY: {', '.join(not_ready)}")
 
-    with _pass_execution_lock(out_dir, ps.key):
+    lock_scope = nullcontext() if pass_lock_held else _pass_execution_lock(out_dir, ps.key)
+    with lock_scope:
         # §3.11 freshness gate: refuse a stale skip/resume/fresh-start before any
         # of the three branches below act on this pass's disk state.
         _check_input_freshness(out_dir, ps)
@@ -895,7 +959,7 @@ async def _run_pass(client, ps: Pass, out_dir: Path, notebooks: dict[str, str]) 
         return {"pass": ps.key, "notebook_id": nb_id, "task_id": task_id, "output": str(out)}
 
 
-async def run_live(sid: str, plan: list[Pass]) -> dict:
+async def run_live(sid: str, plan: list[Pass], *, prelocked_pass: str | None = None) -> dict:
     from notebooklm import NotebookLMClient
 
     out_dir = VAULT / "80-generation" / sid
@@ -911,7 +975,9 @@ async def run_live(sid: str, plan: list[Pass]) -> dict:
         results = []
         for ps in plan:
             print(f"[{ps.key}]")
-            results.append(await _run_pass(client, ps, out_dir, notebooks))
+            results.append(
+                await _run_pass(client, ps, out_dir, notebooks, pass_lock_held=ps.key == prelocked_pass)
+            )
         return {"session": sid, "passes": results}
 
 
@@ -984,6 +1050,80 @@ summary body
 pass B body
 ```
 """
+
+
+def _demo_prepare_regeneration() -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        out_dir = Path(td)
+        ps = Pass(key="deck-a", notebook="demo", instructions="same historical inputs")
+
+        try:
+            with _prepare_regeneration(out_dir, ps):
+                raise AssertionError("unreachable")
+            raise AssertionError("expected HardStop when there is no existing pdf to regenerate")
+        except HardStop:
+            pass
+
+        pdf = out_dir / "deck-a.pdf"
+        pdf.write_bytes(b"%PDF-1.4 fake")
+
+        lock = out_dir / "deck-a.lock"
+        lock.write_text("", encoding="utf-8")
+        try:
+            with _prepare_regeneration(out_dir, ps):
+                raise AssertionError("unreachable")
+            raise AssertionError("expected HardStop while another process holds the pass lock")
+        except HardStop:
+            pass
+        assert pdf.is_file(), "a refused regeneration must never touch the existing artifact"
+        lock.unlink()
+
+        task_id_file = out_dir / "deck-a.task_id"
+        task_id_file.write_text("nb-1\ntask-9", encoding="utf-8")
+        try:
+            with _prepare_regeneration(out_dir, ps):
+                raise AssertionError("unreachable")
+            raise AssertionError("expected HardStop while a task_id sidecar survives")
+        except HardStop:
+            pass
+        assert pdf.is_file(), "a refused regeneration must never touch the existing artifact"
+        task_id_file.unlink()
+
+        original_bytes = pdf.read_bytes()
+        manifest = out_dir / "deck-a.input-manifest"
+        manifest.write_text(_pass_fingerprint(ps), encoding="utf-8")
+        with _prepare_regeneration(out_dir, ps) as quarantined:
+            assert (out_dir / "deck-a.lock").is_file(), (
+                "the pass lock must cover quarantine through the fresh generation attempt"
+            )
+            assert not pdf.is_file(), "the quarantined pass must be cleared so _run_pass fires fresh"
+            assert quarantined.parent == out_dir / ".quarantine"
+            assert quarantined.read_bytes() == original_bytes, (
+                "quarantine must preserve the rejected artifact byte-for-byte, never delete it"
+            )
+        assert not (out_dir / "deck-a.lock").exists(), "the pass lock must be released afterward"
+
+        pdf.write_bytes(original_bytes)
+        try:
+            with _prepare_regeneration(out_dir, ps):
+                raise HardStop("source readiness changed before a task was claimed")
+        except HardStop:
+            pass
+        assert pdf.read_bytes() == original_bytes, (
+            "a failed attempt that never claimed a task must restore the rejected artifact"
+        )
+
+        manifest.unlink(missing_ok=True)
+        try:
+            with _prepare_regeneration(out_dir, ps):
+                raise AssertionError("unreachable")
+            raise AssertionError("expected HardStop for prior work with no freshness manifest")
+        except HardStop:
+            pass
+        assert pdf.read_bytes() == original_bytes
+        assert not manifest.exists(), "regeneration must not silently baseline unverifiable prior work"
 
 
 def _demo() -> None:
@@ -1121,6 +1261,7 @@ def _demo() -> None:
         f.unlink()
 
     asyncio.run(_demo_run_pass())
+    _demo_prepare_regeneration()
     print("self-check OK")
 
 
@@ -1460,6 +1601,24 @@ def main(argv: list[str] | None = None) -> int:
         help="course vault root (per-job, e.g. from CourseDeveloper.Worker); "
         "defaults to this file's own vault for standalone/manual runs",
     )
+    ap.add_argument(
+        "--regenerate-pass",
+        default=None,
+        metavar="PASS",
+        help="STEP 11 Phase B, Batch 2 last resort: quarantine the existing deck-a|deck-b|"
+        "summary PDF and fire exactly one fresh NotebookLM attempt for that pass alone. "
+        "Requires --live. Declines (exit 3) rather than duplicate a task already in flight.",
+    )
+    ap.add_argument(
+        "--prompt-file",
+        type=Path,
+        default=None,
+        help="STEP 11 Phase B, Batch 3, option (a)+(b): use this resolved prompt file instead "
+        "of the course's default 80-generation/nblm-student-deck-prompts.md. "
+        "CourseDeveloper.Worker passes this when it has already rendered and preflighted a "
+        "per-session copy (see NblmPromptPreflightFactCorrector.cs); omitted for a manual/"
+        "standalone run, which falls back to the course's own file exactly as before.",
+    )
     args = ap.parse_args(argv)
 
     if args.self_check:
@@ -1467,6 +1626,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if not args.session:
         ap.error("session id required")
+    if args.regenerate_pass and not args.live:
+        ap.error("--regenerate-pass requires --live — regeneration always spends quota")
 
     # STEP 5: the concrete de-hardcoding this ticket requires — bind every
     # execution-boundary path off CoursePaths.for_root(args.root) instead of
@@ -1497,11 +1658,23 @@ def main(argv: list[str] | None = None) -> int:
     bundle = VAULT / "75-bundle" / sid
 
     mapping = bundle / "ASSET-MAPPING.md"
-    prompt_file = VAULT / "80-generation" / "nblm-student-deck-prompts.md"
+    prompt_file = args.prompt_file or (VAULT / "80-generation" / "nblm-student-deck-prompts.md")
     for f in (mapping, prompt_file):
         if not f.is_file():
             print(f"HARD STOP: missing {f}", file=sys.stderr)
             return 2
+
+    # STEP 11 Phase B, Batch 3 follow-up (Codex review): record which exact prompt file
+    # this run actually used — the per-session rendered copy or the course's shared
+    # default — so the receipt/RESULT_JSON can prove provenance even when the file
+    # already passed preflight and no correction/re-render ran.
+    # Read once so the digest proves the exact bytes parsed below, even if another
+    # process replaces the prompt file while this run is starting.
+    prompt_bytes = prompt_file.read_bytes()
+    prompt_provenance = {
+        "path": str(prompt_file),
+        "sha256": hashlib.sha256(prompt_bytes).hexdigest(),
+    }
 
     try:
         enforce_stage_chain(sid)
@@ -1509,7 +1682,7 @@ def main(argv: list[str] | None = None) -> int:
         enforce_blueprint_gate(bundle / "blueprint.md")
         enforce_asset_gate(assets)
         reconcile_slides(bundle, assets)
-        plan = build_plan(sid, assets, parse_prompts(prompt_file.read_text(encoding="utf-8")))
+        plan = build_plan(sid, assets, parse_prompts(prompt_bytes.decode("utf-8")))
         problems = preflight(plan)
         if problems:
             raise HardStop("preflight failed — " + "; ".join(problems))
@@ -1531,11 +1704,43 @@ def main(argv: list[str] | None = None) -> int:
             "sessionId": sid,
             "receiptPath": None,
             "pedagogy": pedagogy_summary(sid, VAULT),
+            "promptProvenance": prompt_provenance,
         }))
         return 0
 
-    payload = asyncio.run(run_live(sid, plan))
+    regen_extra: dict = {}
+    if args.regenerate_pass:
+        available = {ps.key for ps in plan}
+        if args.regenerate_pass not in available:
+            print(
+                f"REGENERATION DECLINED: --regenerate-pass {args.regenerate_pass!r} is not a pass in "
+                f"this session's plan ({sorted(available)})",
+                file=sys.stderr,
+            )
+            return 3
+
+        plan = [ps for ps in plan if ps.key == args.regenerate_pass]
+        out_dir = VAULT / "80-generation" / sid
+        try:
+            with _prepare_regeneration(out_dir, plan[0]) as quarantined:
+                print(
+                    f"  regenerating only {args.regenerate_pass!r} — "
+                    f"quarantined prior artifact to {quarantined}"
+                )
+                payload = asyncio.run(run_live(sid, plan, prelocked_pass=args.regenerate_pass))
+        except HardStop as exc:
+            print(f"REGENERATION DECLINED: {exc}", file=sys.stderr)
+            return 3
+
+        regen_extra = {
+            "pass": args.regenerate_pass,
+            "newArtifactVersion": int(time.time()),
+            "quarantinedFrom": str(quarantined),
+        }
+    else:
+        payload = asyncio.run(run_live(sid, plan))
     payload["pedagogy"] = pedagogy_summary(sid, VAULT)
+    payload["promptProvenance"] = prompt_provenance
     receipt_path = write_receipt(sid, payload)
     print(f"\nreceipt: {receipt_path}")
     print("Deck is NOT done. Merge the two passes, overlay evidence, then review by eye.")
@@ -1543,6 +1748,8 @@ def main(argv: list[str] | None = None) -> int:
         "sessionId": sid,
         "receiptPath": str(receipt_path),
         "pedagogy": payload["pedagogy"],
+        "promptProvenance": prompt_provenance,
+        **regen_extra,
     }))
     return 0
 

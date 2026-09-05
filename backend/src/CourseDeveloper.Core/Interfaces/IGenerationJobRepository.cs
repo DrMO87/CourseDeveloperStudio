@@ -17,4 +17,20 @@ public interface IGenerationJobRepository
     Task<bool> CancelAsync(Guid jobId, string workerId);
     Task<int> RecoverExpiredLeasesAsync();
     Task AppendEventAsync(Guid jobId, string eventType, System.Collections.Generic.Dictionary<string, object>? detail = null);
+
+    Task PersistContentQualityProgressAsync(
+        Guid jobId,
+        string workerId,
+        System.Collections.Generic.Dictionary<string, object> progress);
+
+    // STEP 11: content-quality-cascade exhaustion must stay honestly 'retryable' even
+    // when AttemptCount == MaxAttempts (Standing Rule 10a) — FailAsync's max-attempts
+    // terminal branch must never be reused for this path. Persists the cascade ledger
+    // into Progress and gates the next ClaimNextAsync via nextAttemptAt.
+    Task RescheduleContentQualityAsync(
+        Guid jobId,
+        string workerId,
+        System.Collections.Generic.Dictionary<string, object> progress,
+        DateTime nextAttemptAt,
+        System.Collections.Generic.Dictionary<string, object>? errorDetails = null);
 }

@@ -21,6 +21,12 @@ public class GenerationJob
     public int AttemptCount { get; set; }
     public int MaxAttempts { get; set; } = 3;
 
+    // STEP 11: gates ClaimNextAsync so a content-quality reschedule (which must stay
+    // 'retryable' even past MaxAttempts, per Standing Rule 10a) is not re-claimed before
+    // its backoff window elapses. Null means immediately eligible, same as before this
+    // column existed.
+    public DateTime? NextAttemptAt { get; set; }
+
     public string? ExternalTaskId { get; set; }
     public string? AcademyBrainVersion { get; set; }
     public bool CancelRequested { get; set; }

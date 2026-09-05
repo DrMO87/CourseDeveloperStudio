@@ -48,6 +48,26 @@
         "sizeBytes": { "type": "integer", "minimum": 0 }
       }
     },
+    "generatedPdfStorage": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Durable locations for the generated PDFs that exist after the live run and any content-quality regeneration. Absent for a dry run, when no generated PDF exists, or when durable storage is not configured.",
+      "properties": {
+        "deck-a": { "$ref": "#/$defs/uploadedArtifact" },
+        "deck-b": { "$ref": "#/$defs/uploadedArtifact" },
+        "summary": { "$ref": "#/$defs/uploadedArtifact" }
+      }
+    },
+    "promptProvenance": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "description": "The prompt file selected for this run and the SHA-256 of the exact bytes parsed by generate_session.py. Present for official live and dry runs; null is retained for compatibility with older or hand-written RESULT_JSON producers.",
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "pedagogy": {
       "type": "object",
       "additionalProperties": false,
@@ -59,6 +79,19 @@
         "evidence": { "type": "object" }
       },
       "description": "Real gates.REGISTRY['pedagogy-coverage'] output for sessionId's level. UNVERIFIED with a plain reason if that level has no pedagogy record yet (00-contracts/pedagogy.md §5) — never fabricated."
+    }
+  },
+  "$defs": {
+    "uploadedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bucket", "path", "sha256", "sizeBytes"],
+      "properties": {
+        "bucket": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sizeBytes": { "type": "integer", "minimum": 0 }
+      }
     }
   }
 }

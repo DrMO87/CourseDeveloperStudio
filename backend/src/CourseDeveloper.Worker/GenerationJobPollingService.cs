@@ -96,7 +96,16 @@ public sealed class GenerationJobPollingService : BackgroundService
 
             var result = await _executor.ExecuteAsync(job, CancelRequested, heartbeatCts.Token);
 
-            if (result.Canceled)
+            if (result.QualityCascadeHandled)
+            {
+                // The content-quality cascade orchestrator already rescheduled this job
+                // itself (see GenerationJobExecutionResult.QualityCascadeHandled's doc
+                // comment) — its status/lease are already handled. Calling Complete/Cancel
+                // here would be a second, conflicting transition on top of that.
+                _logger.LogInformation(
+                    "Job {JobId}: content-quality cascade already rescheduled this job; nothing more to do.", job.Id);
+            }
+            else if (result.Canceled)
             {
                 await _repo.CancelAsync(job.Id, _workerId);
                 _logger.LogInformation("Job {JobId} canceled.", job.Id);

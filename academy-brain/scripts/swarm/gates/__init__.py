@@ -53,6 +53,7 @@ from swarm.gates import (  # noqa: E402,F401
     critique_lane,
     digest_synthesis,
     localization_align,
+    nblm_prompt_preflight,
     patch_adjudication,
     pedagogy_coverage,
     provenance_map,

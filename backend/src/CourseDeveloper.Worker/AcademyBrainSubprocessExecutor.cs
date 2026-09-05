@@ -9,7 +9,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using CourseDeveloper.Core.Interfaces;
 using CourseDeveloper.Core.Models;
+using CourseDeveloper.Infrastructure.ContentQuality;
 using Microsoft.Extensions.Logging;
 
 // STEP 5: real academy-brain invocation, replacing StubGenerationJobExecutor. Per decision 1,
@@ -26,6 +28,12 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
     // refusal (see result.schema.json's exitCode description).
     private const int HardStopExitCode = 2;
 
+    // STEP 11 Phase B, Batch 3: the content-quality cascade has no prior artifact version to
+    // build on the first time a session's content is evaluated (pre-generation) or checked
+    // right after its first generation — 1 is simply "the first version," not a meaningful
+    // external contract. Correctors/patchers/the regeneration adapter advance it from there.
+    private const int InitialArtifactVersion = 1;
+
     private readonly ILogger<AcademyBrainSubprocessExecutor> _logger;
     private readonly string _scriptPath;
     private readonly string _pythonExecutable;
@@ -33,15 +41,21 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
     private readonly TimeSpan _cancelPollInterval;
     private readonly INotebookLmCredentialResolver _credentialResolver;
     private readonly IGenerationArtifactStorage _artifactStorage;
+    private readonly IContentQualityGateReevaluator _reevaluator;
+    private readonly IContentQualityCascadeOrchestrator _cascadeOrchestrator;
 
     public AcademyBrainSubprocessExecutor(
         ILogger<AcademyBrainSubprocessExecutor> logger,
         INotebookLmCredentialResolver credentialResolver,
-        IGenerationArtifactStorage artifactStorage)
+        IGenerationArtifactStorage artifactStorage,
+        IContentQualityGateReevaluator reevaluator,
+        IContentQualityCascadeOrchestrator cascadeOrchestrator)
     {
         _logger = logger;
         _credentialResolver = credentialResolver;
         _artifactStorage = artifactStorage;
+        _reevaluator = reevaluator;
+        _cascadeOrchestrator = cascadeOrchestrator;
 
         // Fail closed rather than guess a relative path across dev/CI/deploy layouts — STEP 6
         // (devops-automator) sets this explicitly in the worker's runtime environment.
@@ -67,7 +81,9 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         string studioCommitSha,
         TimeSpan cancelPollInterval,
         INotebookLmCredentialResolver credentialResolver,
-        IGenerationArtifactStorage artifactStorage)
+        IGenerationArtifactStorage artifactStorage,
+        IContentQualityGateReevaluator? reevaluator = null,
+        IContentQualityCascadeOrchestrator? cascadeOrchestrator = null)
     {
         _logger = logger;
         _scriptPath = scriptPath;
@@ -76,6 +92,8 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         _cancelPollInterval = cancelPollInterval;
         _credentialResolver = credentialResolver;
         _artifactStorage = artifactStorage;
+        _reevaluator = reevaluator ?? new NoOpContentQualityGateReevaluator();
+        _cascadeOrchestrator = cascadeOrchestrator ?? new ThrowIfReachedContentQualityCascadeOrchestrator();
     }
 
     public async Task<GenerationJobExecutionResult> ExecuteAsync(GenerationJob job, Func<Task<bool>> isCancelRequested, CancellationToken stoppingToken)
@@ -98,6 +116,43 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         var courseVaultRoot = ReadString(payload, "courseVaultRoot") ?? throw new InvalidOperationException($"Job {job.Id} payload is missing 'courseVaultRoot'.");
         var live = ReadBool(payload, "live") ?? false;
 
+        // STEP 11 Phase B, Batch 3: option (b)'s pre-generation preflight, and the first-ever
+        // production call site for the content-quality repair cascade (Batches 1-3 built the
+        // machinery; nothing invoked it before this — see Codex's review of Batch 3).
+        // Pass=null here: asset_reconciliation, pedagogy-coverage, and nblm-prompt-preflight
+        // are all evaluable before any PDF is generated (see Batch2ContentQualityGateReevaluator);
+        // this runs — and, on a real defect, repairs or exhausts-and-reschedules — entirely
+        // before any NotebookLM quota is spent. An organization with none of these gates
+        // enabled gets an empty violations list back and resolves trivially (no behavior
+        // change from before this batch).
+        string? renderedPromptPath = null;
+        if (live)
+        {
+            var preGenViolations = await _reevaluator.ReevaluateAsync(job, sessionId, InitialArtifactVersion, pass: null, stoppingToken);
+            if (preGenViolations.Count > 0)
+            {
+                var preGenOutcome = await _cascadeOrchestrator.ProcessAsync(job, sessionId, InitialArtifactVersion, null, preGenViolations, stoppingToken);
+                if (!preGenOutcome.Resolved)
+                {
+                    _logger.LogWarning(
+                        "Job {JobId}: pre-generation content-quality cascade exhausted for session {SessionId}; " +
+                        "rescheduled without spending NotebookLM quota.", job.Id, sessionId);
+                    return new GenerationJobExecutionResult(Canceled: false, ResultManifest: new(), QualityCascadeHandled: true);
+                }
+            }
+
+            // If nblm-prompt-preflight is enabled and just rendered (or a prior attempt for
+            // this session already did), hand generate_session.py that resolved file instead
+            // of the course's raw template — see NblmPromptFields.RenderedPath's doc comment.
+            // Nothing renders it when the gate isn't enabled, so an org that hasn't opted in
+            // gets exactly today's behavior (the course's own static file, unchanged).
+            var candidateRenderedPath = NblmPromptFields.RenderedPath(courseVaultRoot, sessionId);
+            if (File.Exists(candidateRenderedPath))
+            {
+                renderedPromptPath = candidateRenderedPath;
+            }
+        }
+
         // STEP 6: resolved at execution time, not read from the enqueue-time payload — see
         // NotebookLmCredentialResolver's doc comment for why that matters for rotation.
         string? notebookLmAuthJson = null;
@@ -114,6 +169,11 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         }
 
         var arguments = new List<string> { _scriptPath, sessionId, "--root", courseVaultRoot };
+        if (renderedPromptPath is not null)
+        {
+            arguments.Add("--prompt-file");
+            arguments.Add(renderedPromptPath);
+        }
         if (live)
         {
             arguments.Add("--live");
@@ -200,6 +260,38 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
 
         var resultLine = ParseResultJsonLine(stdoutText);
 
+        // Post-generation content-quality cascade: language_ratio/boundary_check/brand_palette
+        // each need an actual generated PDF, so they only make sense once generate_session.py
+        // has produced one — check every pass this session actually produced, before this
+        // job's artifacts get uploaded/completed. Running this BEFORE the upload block below
+        // matters: if a violation triggers tier-3 regeneration (PassRegenerationAdapter), the
+        // regenerated PDF/bundle on disk must be what gets uploaded, not the pre-repair one.
+        if (live)
+        {
+            foreach (var pass in PdfPassSource.SupportedPasses)
+            {
+                var pdfPath = PdfPassSource.ResolvePdfPath(courseVaultRoot, sessionId, pass);
+                if (!File.Exists(pdfPath))
+                {
+                    continue; // this session's plan didn't produce this pass
+                }
+
+                var postGenViolations = await _reevaluator.ReevaluateAsync(job, sessionId, InitialArtifactVersion, pass, stoppingToken);
+                if (postGenViolations.Count == 0)
+                {
+                    continue;
+                }
+                var postGenOutcome = await _cascadeOrchestrator.ProcessAsync(job, sessionId, InitialArtifactVersion, pass, postGenViolations, stoppingToken);
+                if (!postGenOutcome.Resolved)
+                {
+                    _logger.LogWarning(
+                        "Job {JobId}: post-generation content-quality cascade exhausted for session {SessionId} pass {Pass}; rescheduled.",
+                        job.Id, sessionId, pass);
+                    return new GenerationJobExecutionResult(Canceled: false, ResultManifest: new(), QualityCascadeHandled: true);
+                }
+            }
+        }
+
         var manifest = new Dictionary<string, object>
         {
             ["contractVersion"] = 1,
@@ -214,6 +306,7 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         // NpgsqlGenerationJobRepository serializes it through System.Text.Json as JSON null.
         manifest["receiptPath"] = resultLine.ReceiptPath!;
         manifest["pedagogy"] = resultLine.Pedagogy;
+        manifest["promptProvenance"] = resultLine.PromptProvenance!;
 
         // STEP 6: land the artifact somewhere Studio-visible, not just this worker's local
         // disk. Only meaningful when a receipt actually exists (a live run) — a dry run never
@@ -280,6 +373,37 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
                     "Job {JobId}: live run succeeded but bundle directory {BundleDir} doesn't exist — no course output uploaded.",
                     job.Id, bundleDir);
             }
+
+            // STEP 11 Phase B, Batch 3 follow-up (Codex review): the receipt is a small status
+            // file and the 75-bundle zip above is the pre-generation source material — neither
+            // one is the actual generated PDF academy-brain produced under 80-generation/<sid>.
+            // Upload whichever passes this session actually generated (post-gen cascade may
+            // have already regenerated one), keyed by pass so a caller can tell them apart.
+            var pdfStorage = new Dictionary<string, object>();
+            foreach (var pass in PdfPassSource.SupportedPasses)
+            {
+                var pdfPath = PdfPassSource.ResolvePdfPath(courseVaultRoot, sessionId, pass);
+                if (!File.Exists(pdfPath))
+                {
+                    continue;
+                }
+
+                var uploadedPdf = await _artifactStorage.UploadAsync(job.Id, pdfPath, stoppingToken);
+                if (uploadedPdf is not null)
+                {
+                    pdfStorage[pass] = new Dictionary<string, object>
+                    {
+                        ["bucket"] = uploadedPdf.Bucket,
+                        ["path"] = uploadedPdf.StoragePath,
+                        ["sha256"] = uploadedPdf.Sha256,
+                        ["sizeBytes"] = uploadedPdf.SizeBytes,
+                    };
+                }
+            }
+            if (pdfStorage.Count > 0)
+            {
+                manifest["generatedPdfStorage"] = pdfStorage;
+            }
         }
 
         return new GenerationJobExecutionResult(Canceled: false, ResultManifest: manifest);
@@ -304,7 +428,7 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
 
     internal static string Tail(string text) => text.Length <= TailCharLimit ? text : text[^TailCharLimit..];
 
-    internal sealed record ParsedResultLine(string? ReceiptPath, Dictionary<string, object> Pedagogy);
+    internal sealed record ParsedResultLine(string? ReceiptPath, Dictionary<string, object> Pedagogy, Dictionary<string, object>? PromptProvenance);
 
     // generate_session.py prints exactly one "RESULT_JSON:{...}" line as its last line of
     // stdout (both the dry-run and --live paths) — see STEP 5's generate_session.py changes.
@@ -335,7 +459,13 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
                 throw new InvalidOperationException(
                     "generate_session.py RESULT_JSON is missing its required pedagogy summary.");
             }
-            return new ParsedResultLine(receiptPath, pedagogy);
+            // STEP 11 Phase B, Batch 3 follow-up (Codex review): proof of exactly which prompt
+            // file this run used, even when an existing rendered file passed preflight and no
+            // correction ran (the correction event alone doesn't cover that case).
+            var promptProvenance = root.TryGetProperty("promptProvenance", out var pp) && pp.ValueKind == JsonValueKind.Object
+                ? JsonSerializer.Deserialize<Dictionary<string, object>>(pp.GetRawText())
+                : null;
+            return new ParsedResultLine(receiptPath, pedagogy, promptProvenance);
         }
 
         throw new InvalidOperationException(
@@ -373,4 +503,37 @@ public sealed class AcademyBrainSubprocessExecutor : IGenerationJobExecutor
         double d => (int)d,
         _ => throw new InvalidOperationException($"expected a number, got {value?.GetType().Name ?? "null"}."),
     };
+}
+
+// Test-only fallback for the internal constructor overload used by
+// AcademyBrainSubprocessExecutorTests: those tests exercise subprocess launching/parsing/
+// cancellation behavior unrelated to the content-quality cascade, so an omitted reevaluator
+// defaults to one that always finds nothing — matching every real organization until it
+// enables a gate. ExecuteAsync only ever calls the orchestrator when a reevaluator actually
+// returned violations (see its `if (...Count > 0)` / `if (...Count == 0) continue;` guards),
+// so pairing this with the default orchestrator below means the orchestrator is never
+// reached at all in that (correct, common) case.
+internal sealed class NoOpContentQualityGateReevaluator : IContentQualityGateReevaluator
+{
+    public Task<List<ContentQualityViolation>> ReevaluateAsync(
+        GenerationJob job, string artifactLineageId, int artifactVersion, string? pass, CancellationToken ct)
+        => Task.FromResult(new List<ContentQualityViolation>());
+}
+
+// Codex's review (STEP 11 Phase B, Batch 3 follow-up): an "always resolved" fallback here
+// would silently mask a real misconfiguration — a caller that supplies a real reevaluator
+// (one that can return violations) but forgets to also supply a real orchestrator. Since
+// ExecuteAsync never invokes ProcessAsync with an empty violations list, actually reaching
+// this class's ProcessAsync means exactly that mismatch occurred; fail loudly instead of
+// quietly pretending the cascade resolved something it never evaluated.
+internal sealed class ThrowIfReachedContentQualityCascadeOrchestrator : IContentQualityCascadeOrchestrator
+{
+    public Task<ContentQualityCascadeOutcome> ProcessAsync(
+        GenerationJob job, string artifactLineageId, int artifactVersion, string? pass,
+        List<ContentQualityViolation> violations, CancellationToken ct)
+        => throw new InvalidOperationException(
+            $"AcademyBrainSubprocessExecutor's internal test constructor was given a reevaluator that " +
+            $"returned {violations.Count} content-quality violation(s) for job {job.Id} (pass '{pass}'), " +
+            "but no real IContentQualityCascadeOrchestrator was supplied. Pass one explicitly — this " +
+            "fallback only exists to be paired with the default no-op reevaluator.");
 }
