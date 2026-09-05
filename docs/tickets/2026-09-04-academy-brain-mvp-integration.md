@@ -1,11 +1,15 @@
 ---
 type: execution-plan
 status: approved-pending-execution
-last_updated: 2026-09-04
+last_updated: 2026-09-05
 ---
 
 > [!warning] Amended after initial approval
 > DEC-004 and DEC-005 (STEP 0a) were added after this ticket's first version. DEC-004 **reverses** the original decision 1/2 language about academy-brain staying an externally-pinned, separately-versioned release — read STEP 0a before trusting any older step text that still says "pinned external release" or "no vendored copy." Steps 2, 3, 4, 5, 6, 7, and 8 have all been updated to match; if any wording elsewhere in this file still contradicts DEC-004 or DEC-005, DEC-004/DEC-005 win.
+>
+> **2026-09-05 (DEC-008):** the former STEP 8 ("Merge MVP lesson-authoring into Studio") is **descoped from immediate execution**. Its full scope is preserved, unscheduled, as **STEP 8b** below. The step number **STEP 8** is reassigned to a small, deferred task: building Studio's own login page. STEP 9 changed from a plan-only step to a plan-then-implementation step (the approval gate stays — implementation only covers capabilities the user explicitly approves). See STEP 0a, DEC-008.
+>
+> **2026-09-05 (DEC-009):** an independent, read-only Codex diagnosis of academy-brain's actual pipeline (`docs/tickets/handoffs/step9-digestion-diagnosis.md`) confirmed Dr. Mahmoud's complaint and found it's broader than one file: most of academy-brain's 11 documented pipeline stages are file-presence gates, not real content work. STEP 9 Phase A's mandate widens from "compare against MVP only" to "diagnose and propose fixes for academy-brain's own gate-only stages, using MVP as one candidate source of transferable capability, not the only one." See STEP 0a, DEC-009.
 
 # academy-brain + Dr Mahmoud MVP → CourseDeveloperStudio Integration
 
@@ -47,6 +51,12 @@ CourseDeveloperStudio is Dr. Mahmoud's institute-agnostic curriculum platform �
 4. **Customer-facing design principle (DEC-005) — "monkey theory."** Every customer type (academy owner, university professor, school teacher) is designed for as the same technologically-illiterate archetype: press a button, it works, done — whether a "stubborn" resistant professor or a "compliant" academy/school teacher. One linear button chain (4-8 steps, same as MVP's existing `/create` flow), identical for everyone, no settings screen, no guidance-level dial, no onboarding-path choice. This **overrides** an earlier draft of this same decision (round 1) where the assistant and Codex had both proposed an adjustable "guidance level" setting — the user rejected that explicitly: a dial is still a decision the customer has to make, which this customer archetype does not do. Codex round 2 verdict: CONCEDE-WITH-CHANGES — approved the zero-configuration direction, and added two requirements folded into STEP 3/5/7/8 below: (a) a short post-generation "transformation receipt" (what was kept / added / adjusted) since the MVP's existing confirmation step only verifies what was *read*, not what happened after; (b) every blocked "next" button must show one plain-language reason and one concrete fix, not just stay disabled. Evidence: `docs/tickets/codex-review-evidence/adoption-ux-round1-review.json` and `docs/tickets/codex-review-evidence/adoption-ux-round2-review.json`.
 5. **Canonical database (DEC-006) — resolves Blocker Register #2.** STEP 2 found MVP and Studio currently run on two separate Supabase projects, which blocks the `WorksheetProject.sessionId → course_sessions.id` FK until one database survives. Ruled 2026-09-04: **Studio's Supabase project (`gjxhfyfonjdcaimxjipp`) is canonical.** MVP's tables get created there via Prisma migration, MVP's existing production data is copied across in a one-time migration, and MVP's old project (`jbjfafyjqdjmzmdggzha`) is retired once cutover is verified — same "one home, not dual-maintained" pattern as DEC-004, applied to the database. STEP 8 sequences and executes this (consolidate → `sessionId` reconciliation → FK), per STEP 2's plan in `docs/tickets/handoffs/step2-schema-ownership.md`.
 6. **Digestion-pipeline scope (DEC-007) — new STEP 9, not folded into STEP 8.** The user's stated priority: MVP's most important retained value is its content-intake/digestion pipeline, and academy-brain's pipeline (DIGEST and its neighboring receipt/provenance/review stages, not just `digest_office.py` in isolation) may hold transferable improvements for it — without narrowing academy-brain's own pipeline to just that stage. Codex's independent review confirmed a real conflict with STEP 8's existing scope lock ("move MVP's workflow as-is... other workflow changes are a separate, future request") and recommended against folding an unscoped "improve digestion" mandate into STEP 8, since it has no named capability, acceptance test, or affected inputs/outputs yet. MVP operates at one-teacher/one-lesson scale with pasted-text or PDF intake, while academy-brain operates at multi-session-course scale; academy-brain's legacy automated Office digest runner is additionally hardcoded today to 11 Micro:bit PPTX decks. Techniques are therefore not guaranteed to transfer as-is. Ruled 2026-09-04: recorded as STEP 9 below — a comparison-and-scoping step, not an implementation mandate. No digestion workflow change to MVP is authorized until STEP 9 names specific capabilities and the user approves them.
+7. **STEP 8 descoped; MVP merge deferred as STEP 8b; STEP 9 becomes plan-then-implementation (DEC-008).** Ruled 2026-09-05, after STEP 7 shipped and the user tried the running product and asked what STEP 8 actually does. Two changes:
+   - **STEP 8 descope.** The user's own words: *"step 8 is obselete as is. it will be another step bulding the login page and we do that once we make sure that our product is running."* The full MVP lesson-authoring merge (Prisma tables, `WorksheetProject`↔`course_sessions` FK, canonical-database migration per DEC-006, transformation receipt, blocked-button messaging) is **not canceled** — it is deferred, unscheduled, and preserved verbatim as **STEP 8b** below, pending a future, separate user go-ahead. The step number **STEP 8** is reassigned to a much smaller task: give Studio its own login page (modeled on MVP's already-proven Supabase auth pattern, referenced not moved) so the product STEP 1–7 already built is actually usable end-to-end without a hand-run Supabase session. New STEP 8 is explicitly gated on the user first confirming the STEP 1–7 product runs end-to-end — it is not sequenced to start automatically the moment STEP 7's handoff exists.
+   - **DEC-006's canonical-database consolidation moves with the deferred scope.** DEC-006 (Studio's Supabase project is canonical; MVP's data migrates in) exists to unblock the `WorksheetProject` FK, which is STEP 8b work now, not STEP 8. DEC-006 itself is **not reopened or reversed** — its resolution stands — only the step that executes it moves to STEP 8b. Blocker Register #2 is repointed accordingly.
+   - **STEP 9 becomes plan-then-implementation.** The user's own words: *"step 9 should be a plan then implemintation."* STEP 9 keeps its existing Phase A (comparison, capability table, adopt/adapt/skip recommendations) unchanged, and gains a Phase B: once the user approves specific capabilities from Phase A's table, the **same step** implements exactly those approved capabilities — no new step needs to be authored to act on an approval. The approval gate itself is unchanged and non-negotiable: Phase B never starts on Phase A's completion alone, and never implements a capability the user didn't approve.
+
+8. **STEP 9 Phase A's mandate widens to include academy-brain's own gate-only stages, not just MVP comparison (DEC-009).** Ruled 2026-09-05. Before running Phase A, the user asked for an independent diagnosis of how academy-brain's pipeline actually digests content, dispatched via Codex (read-only, `codex-cli 0.153.3`, session `01a06ee1-279e-78b2-ac59-2df2e1ba2d76`). Findings, in full, at `docs/tickets/handoffs/step9-digestion-diagnosis.md`: the DIGEST stage (`digest_office.py`/`run_digest.py`) is pure extraction with no synthesis, confirming the complaint — but so are most of the other 10 documented stages (receipts, research, provenance, critique, patch, refutation, approval, localization, bundling), each implemented as a file-presence/metadata gate rather than real content review. Only the final generation stage does real AI work (calling NotebookLM), and it never receives digested understanding from earlier stages because none is produced. The user's own words: *"we need to improve whats wrong with studio."* This means STEP 9 Phase A must diagnose and propose fixes for academy-brain's own broken stages directly — MVP's pipeline remains one candidate source of transferable capability (per DEC-007) but is no longer the only lens; a stage academy-brain gets wrong that MVP also doesn't solve is still in scope for a proposed fix. Phase B's approval gate is unchanged: nothing gets built until the user approves specific items from Phase A's table.
 
 ### 0b — Assumed by the agent *(not binding — overturn cheaply)*
 
@@ -66,7 +76,7 @@ Target monorepo layout, per Codex's engine-placement review — steps below buil
 
 ```text
 CourseDeveloperStudio/
-├── frontend/                         # Next.js app (Studio + merged MVP module, STEP 8)
+├── frontend/                         # Next.js app (Studio; own login page in STEP 8; merged MVP module deferred to STEP 8b)
 ├── backend/
 │   ├── src/
 │   │   ├── CourseDeveloper.Core/
@@ -285,17 +295,52 @@ The worker's deployed image contains both `CourseDeveloper.Worker` and the Pytho
 
 ---
 
-## STEP 8 — frontend-developer + backend-dev: Merge MVP lesson-authoring into Studio
+## STEP 8 — frontend-developer: Give Studio its own login page
 
-**Owner:** frontend-developer (Next.js/Prisma code move), backend-dev (FK + auth unification)
-**Starts when:** STEP 2, STEP 6, and STEP 7 handoffs all exist
+> [!info] Reassigned 2026-09-05 (DEC-008). This step used to be the full MVP merge — that scope still exists, unscheduled, as **STEP 8b** immediately below. This STEP 8 is new and much smaller.
 
-**Task:** Move MVP's lesson-authoring routes, components, and Prisma layer into CourseDeveloperStudio's Next.js frontend as a module (per DEC-003 — literal code merge, not a separate deployment). Make MVP's Supabase auth pattern (already proven working) the shared identity boundary application-wide. Implement the `WorksheetProject.sessionId` → `course_sessions.id` FK per STEP 2's plan. Per DEC-005, add two small, non-branching additions to MVP's existing linear `/create` flow: (1) a short "transformation receipt" shown with the finished lesson — kept / added / adjusted, sourced from STEP 5's job result, not invented here; (2) when a required-field button won't advance, show one plain-language reason and one concrete fix inline (e.g. "Add the school logo to continue.") instead of leaving it silently disabled.
+**Owner:** frontend-developer
+**Starts when:** the user has personally confirmed the STEP 1–7 product runs end-to-end (i.e. has used the app and is satisfied it works) — **this is a manual go-ahead from the user, not a file-existence gate.** Do not start this step just because STEP 7's handoff file exists.
+
+**Task:** Build a real login/sign-up page for Studio's own frontend and wire session state through it, so the API calls STEP 7 already wired stop needing a hand-run Supabase session. Model it directly on MVP's already-working, already-proven pattern — `D:\vault\Dr mahmoud MVP\src\app\login\page.tsx` (the actual screen: email, password, one submit button, a sign-up toggle, nothing else) plus `AuthContext.tsx`/`session.ts` (the session logic) — as a **reference to follow, not code to move**. Add an app-wide guard that redirects an unauthenticated visitor to `/login`, and make sure a signed-in session persists across a page reload and actually attaches to every request STEP 7's `apiClient.ts` sends.
 
 **Mandatory reading:**
-- `D:\vault\Dr mahmoud MVP\src\lib\auth\AuthContext.tsx` and `src\server\auth\session.ts` — the auth pattern becoming platform-wide
+- `D:\vault\Dr mahmoud MVP\src\app\login\page.tsx` — the actual screen to model (already read in full this session: email field, password field, one submit button, a plain-text mode toggle, an inline error banner — no third-party sign-in buttons, no "forgot password" flow, no extra screens)
+- `D:\vault\Dr mahmoud MVP\src\lib\auth\AuthContext.tsx` and `src\server\auth\session.ts` — the session/token logic behind that screen
+- STEP 1's handoff (`docs/tickets/handoffs/step1-backend-auth-di.md`) — the exact backend auth mechanism this login must produce a token for
+- STEP 7's handoff (`docs/tickets/handoffs/step7-frontend-backend-wiring.md`) — its "no login flow" gap note, and `frontend/src/lib/apiClient.ts` — where the real access token needs to attach to outgoing requests
+
+**Constraints:**
+- One Supabase auth boundary: authenticate against Studio's own, already-canonical Supabase project (DEC-006: `gjxhfyfonjdcaimxjipp`) — do not point this login at MVP's separate project (`jbjfafyjqdjmzmdggzha`); that project's data migration is STEP 8b's concern, not this step's.
+- Per Standing Rule 10 (DEC-005): one screen, one flow, identical for every institute type — no "which organization are you" chooser, no config, no mode toggle. If a signed-in user belongs to more than one organization, that selection happens post-login, inside the app's existing organization switcher (`ObsidianGraphView`/dashboard already has one) — not as a login-time decision.
+- Session must survive a page reload without forcing re-entry of credentials, matching what MVP's pattern already does.
+
+**Scope lock — do NOT:**
+- Do not move any of MVP's Prisma lesson-authoring tables, routes, or components — that is STEP 8b, deferred.
+- Do not implement the `WorksheetProject`↔`course_sessions` FK or any canonical-database data migration (DEC-006's execution) — STEP 8b.
+- Do not implement the transformation-receipt or blocked-button plain-language messaging — those are STEP 8b's UX additions on MVP's `/create` flow, not this step's.
+- Do not add password reset, social sign-in, multi-factor auth, or any screen beyond what MVP's existing login page already has — match the proven pattern, don't expand it.
+
+**Output:** `docs/tickets/handoffs/step8-studio-login.md` — the login page, the session-wiring approach, before/after for an unauthenticated request against a STEP 7 endpoint
+
+**Exit criteria:** an unauthenticated visit to Studio redirects to `/login`; a successful sign-in persists a session and every STEP 7 API call (organizations/projects/sessions/gates) succeeds without a hand-run token; a reload keeps the session; signing out clears it and re-locks the app; the login screen has exactly one flow with zero settings/mode configuration.
+
+---
+
+## STEP 8b — frontend-developer + backend-dev: Merge MVP lesson-authoring into Studio *(deferred — not currently scheduled)*
+
+> [!warning] Deferred 2026-09-05 (DEC-008). This is the full scope that used to be STEP 8, preserved verbatim below so it isn't lost. **Do not start this step from this ticket alone** — it requires a fresh, explicit user go-ahead in addition to its own prerequisites, because the user descoped it precisely to avoid this scale of work happening automatically once STEP 7 shipped.
+
+**Owner:** frontend-developer (Next.js/Prisma code move), backend-dev (FK + auth unification)
+**Starts when:** STEP 2, STEP 6, and STEP 8 handoffs all exist, **and** the user has explicitly authorized this step by name (a handoff existing is necessary but not sufficient — see the deferral note above).
+
+**Task:** Move MVP's lesson-authoring routes, components, and Prisma layer into CourseDeveloperStudio's Next.js frontend as a module (per DEC-003 — literal code merge, not a separate deployment). Extend STEP 8's login (already built by this point) so MVP's Supabase auth pattern is the shared identity boundary application-wide, including MVP's own users/data. Implement the `WorksheetProject.sessionId` → `course_sessions.id` FK per STEP 2's plan, executing DEC-006's canonical-database consolidation (Studio's Supabase project is canonical; MVP's production data migrates in; MVP's old project is retired once verified). Per DEC-005, add two small, non-branching additions to MVP's existing linear `/create` flow: (1) a short "transformation receipt" shown with the finished lesson — kept / added / adjusted, sourced from STEP 5's job result, not invented here; (2) when a required-field button won't advance, show one plain-language reason and one concrete fix inline (e.g. "Add the school logo to continue.") instead of leaving it silently disabled.
+
+**Mandatory reading:**
+- `D:\vault\Dr mahmoud MVP\src\lib\auth\AuthContext.tsx` and `src\server\auth\session.ts` — the auth pattern becoming platform-wide (STEP 8 already used this as a reference for Studio's own login; this step is where MVP's own users/data actually move onto that boundary)
 - `D:\vault\Dr mahmoud MVP\prisma\schema.prisma` — all 17 models being moved (not 15, per Codex's correction of the original research)
 - STEP 2's handoff — the exact FK type/nullability decided there
+- STEP 8's handoff — the login page and session wiring this step builds on rather than duplicates
 - `docs/tickets/codex-review-evidence/studio-review.json`, decision 6 section — evidence for why "auth/data layer" language needed qualifying (MVP's data model isn't Studio's general data layer, it's the lesson-authoring bounded context specifically)
 - `docs/tickets/codex-review-evidence/adoption-ux-round1-review.json` and `docs/tickets/codex-review-evidence/adoption-ux-round2-review.json` — DEC-005's full reasoning, the transformation-receipt gap, and why it can't just reuse MVP's existing intake-confirmation step
 
@@ -310,41 +355,63 @@ The worker's deployed image contains both `CourseDeveloper.Worker` and the Pytho
 - Do not merge MVP's and Studio's "project" concepts into one table — decision 6 is explicit that these stay two linked aggregates (via the FK), not one collapsed entity.
 - Do not build a before/after diff UI or a separate approval screen for the transformation receipt — it's a compact, read-only summary attached to the result, per Codex round 2's "not a full comparison interface" ruling.
 
-**Output:** `docs/tickets/handoffs/step8-mvp-merge.md` — file move manifest, auth unification summary, FK migration, transformation-receipt implementation, before/after for one lesson-authoring flow exercised end-to-end inside the merged app
+**Output:** `docs/tickets/handoffs/step8b-mvp-merge.md` — file move manifest, auth unification summary, FK migration, transformation-receipt implementation, before/after for one lesson-authoring flow exercised end-to-end inside the merged app
 
 **Exit criteria:** MVP's lesson-authoring flow runs inside CourseDeveloperStudio's frontend under one auth session, unchanged in step order; a `WorksheetProject` created in that flow carries a valid FK to a real `course_sessions` row; the finished lesson shows a transformation receipt; a blocked required-field button shows a plain-language reason and fix; no separate MVP deployment is required for this flow to work.
 
 ---
 
-## STEP 9 — system-architect: Digestion-pipeline capability comparison (MVP vs. academy-brain)
+## STEP 9 — system-architect (Phase A) + backend-dev/coder (Phase B): Digestion-pipeline diagnosis, capability comparison, and implementation (academy-brain, with MVP as a candidate source)
 
-**Owner:** system-architect
-**Starts when:** STEP 5 handoff exists (academy-brain is then in the monorepo and STEP 5's already-implemented pedagogy-gate change is known; the comparison can inspect MVP's existing source before STEP 8 moves it and does not depend on the merge)
+> [!info] Changed 2026-09-05 (DEC-008, DEC-009). This step used to stop at a proposal document comparing MVP vs. academy-brain. It now has two phases: Phase A (diagnose academy-brain's own gate-only stages + compare/propose against MVP where relevant) is widened per DEC-009; Phase B (implement) only ever covers capabilities the user has explicitly approved out of Phase A's table — it never starts on Phase A's completion alone.
 
-**Task:** Per DEC-007, compare MVP's content-intake/digestion pipeline (source intake → `PlaceholderSet` inference → `GuideDocument`/`GuideRule` ingestion → `SourcePackAttempt` generation) against academy-brain's receipt, digest, provenance, and review stages, and name specific, transferable capabilities — not a vague "improve digestion" mandate. For each candidate capability: what MVP does today, what academy-brain does differently, why it's actually better (not just different), what it would take to bring in, and what it would NOT change (inputs/outputs/stored semantics MVP's teachers already depend on, unless the capability is explicitly about changing those). This step produces a proposal for the user to approve — it does not implement anything.
+**Owner:** system-architect (Phase A — diagnosis + comparison), backend-dev + coder (Phase B — implementing only the capabilities the user approves; coder for academy-brain/Python-side changes, backend-dev for anything touching Studio's .NET API or MVP's TypeScript side)
+**Starts when:** STEP 5 handoff exists (academy-brain is then in the monorepo and STEP 5's already-implemented pedagogy-gate change is known; the comparison can inspect MVP's existing source before STEP 8b moves it and does not depend on the merge). Phase B additionally starts only when the user has explicitly approved one or more specific capabilities from Phase A's output — never automatically.
+
+### Phase A — Diagnose, compare, and propose
+
+**Task:** Start from the pre-work diagnosis already done (`docs/tickets/handoffs/step9-digestion-diagnosis.md`, DEC-009): academy-brain's DIGEST stage is pure extraction, and 9 of its other 10 documented stages (receipts, research, provenance, critique, patch, refutation, approval, localization, bundling) are file-presence/metadata gates standing in for real content review. For each broken stage, propose a concrete fix — what the stage should actually do, grounded in what its own docs (`ENGINE.md`, `pdf-intake-sop.md`) already claim it does. Where MVP's content-intake/digestion pipeline (source intake → `PlaceholderSet` inference → `GuideDocument`/`GuideRule` ingestion → `SourcePackAttempt` generation) has a directly transferable capability for a given stage, name it per DEC-007's original comparison mandate — but MVP is not required to have an answer for every stage; academy-brain's critique/patch/refutation gates, for instance, may need a fix with no MVP equivalent at all. For each candidate fix (MVP-sourced or academy-brain-native): what the stage does today (cite the diagnosis or fresh code reading), what it should do instead, why, what it would take to build, and what it would NOT change (inputs/outputs/stored semantics MVP's teachers or academy-brain's existing gate chain already depend on, unless the fix is explicitly about changing those). Phase A produces a proposal for the user to approve — it does not implement anything.
 
 **Mandatory reading:**
+- `docs/tickets/handoffs/step9-digestion-diagnosis.md` — the completed pre-work diagnosis (DEC-009); ground every proposed fix in this, don't re-derive it from scratch
 - `D:\vault\Dr mahmoud MVP\prisma\schema.prisma` — `SourceDocument`, `PlaceholderSet`, `GuideDocument`/`GuideRule`, and `SourcePackAttempt`, to ground MVP's stored entities in the actual schema
 - `D:\vault\Dr mahmoud MVP\src\server\source-intake\service.ts`, `src\server\placeholders\service.ts`, `src\server\first-route\governed-input-service.ts`, and `src\server\first-route\source-pack-service.ts` — the implementation paths that ground what MVP actually does with those entities
-- academy-brain's monorepo copies of `docs\ENGINE.md`, `00-contracts\pdf-intake-sop.md`, `scripts\swarm\digest_office.py`, and `scripts\run_digest.py` after STEP 5 (currently at the corresponding paths under `D:\vault\academy-brain`) — read the relocated authoritative copies, not the retired source repository
+- academy-brain's monorepo copies of `docs\ENGINE.md`, `00-contracts\pdf-intake-sop.md`, `scripts\swarm\digest_office.py`, `scripts\run_digest.py`, `scripts\swarm\stage_gate.py`, and `scripts\swarm\generate_session.py` (paths per the diagnosis handoff) — read the relocated authoritative copies, not the retired source repository
 - `docs\ENGINE.md` — the documented 11-stage pipeline (receipts, research, digest, provenance, critique, patch, refutation, approval, localization, bundling, generation), not just the `DIGEST` stage name
 - `00-contracts\pdf-intake-sop.md` — the sourced-receipt, digest, then independent-review pattern for PDF sources
-- `scripts\swarm\digest_office.py` and `scripts\run_digest.py` — the legacy automated Office digest code (PPTX slide/notes/image extraction, session-ID validation, and extraction warnings), to distinguish that narrow runner from the broader PDF-oriented pipeline and from its hardcoded 11-deck Micro:bit source map
 - STEP 5's handoff — academy-brain's pedagogy gate already replaces MVP's regex-based objective/skill detection; any STEP 9 proposal must be distinct from that already-shipped change, not a duplicate of it
 
 **Constraints:**
-- Every proposed capability must name: the specific academy-brain mechanism, the specific MVP touchpoint it would change, and a concrete before/after (not "richer extraction" — an actual example).
-- Must explicitly flag scale/format mismatches per capability (MVP: one teacher, one lesson, pasted text or PDF; academy-brain: one multi-session course with a broader PDF-oriented intake SOP, while its legacy automated Office digest runner is PPTX-centric and hardcoded to a Micro:bit session map), so nothing is proposed that only works for Techno Square's specific course structure.
-- Must not propose collapsing MVP's and academy-brain's pipelines into one shared implementation — per decision 6 and STEP 8's scope lock, these remain two linked systems, not one merged data/processing layer.
+- Every proposed fix must name: the specific academy-brain stage/mechanism it targets (cite the diagnosis handoff or fresh code), a concrete before/after (not "richer digestion" — an actual example of what changes), and, where one exists, the MVP touchpoint it draws from.
+- Must explicitly flag scale/format mismatches per capability drawn from MVP (MVP: one teacher, one lesson, pasted text or PDF; academy-brain: one multi-session course with a broader PDF-oriented intake SOP, while its legacy automated Office digest runner is PPTX-centric and hardcoded to a Micro:bit session map), so nothing is proposed that only works for Techno Square's specific course structure.
+- Must not propose collapsing MVP's and academy-brain's pipelines into one shared implementation — per decision 6 and STEP 8b's scope lock, these remain two linked systems, not one merged data/processing layer.
 
-**Scope lock — do NOT:**
-- Do not implement any of the proposed capabilities in this step — this step produces a reviewed proposal only.
-- Do not modify MVP's or academy-brain's code, schema, or pipeline in this step.
-- Do not treat this step's completion as authorization to build — a following implementation step is only scoped after the user approves specific capabilities from this step's output.
+**Phase A scope lock — do NOT:**
+- Do not implement any of the proposed fixes in Phase A — Phase A produces a reviewed proposal only.
+- Do not modify MVP's or academy-brain's code, schema, or pipeline in Phase A.
+- Do not treat Phase A's completion as authorization to build — Phase B only covers capabilities the user has explicitly approved from Phase A's output; an unapproved capability, however well-argued, does not get built.
 
-**Output:** `docs/tickets/handoffs/step9-digestion-comparison.md` — capability-by-capability comparison table, each with a recommendation (adopt / adapt / skip) and reasoning, ready for user approval
+**Phase A output:** `docs/tickets/handoffs/step9-digestion-comparison.md` — stage-by-stage fix proposal covering academy-brain's own gate-only stages plus any MVP-sourced capability, each with a recommendation (adopt / adapt / skip) and reasoning, ready for user approval
 
-**Exit criteria:** every proposed capability names a concrete academy-brain mechanism, a concrete MVP touchpoint, and a concrete before/after; no proposal requires collapsing the two pipelines into one; the user has an actionable list to approve or reject, not a restated version of "improve digestion."
+**Phase A exit criteria:** every proposed fix names a concrete academy-brain stage/mechanism, a concrete before/after, and (where applicable) a concrete MVP touchpoint; no proposal requires collapsing the two pipelines into one; the user has an actionable list to approve or reject, not a restated version of "improve digestion."
+
+### Phase B — Implement the approved capabilities
+
+**Task:** For each fix the user explicitly approved from Phase A's table (adopt or adapt — never a skipped one, whether it targets an academy-brain gate-only stage directly or draws from MVP), implement exactly that fix against the before/after Phase A already described for it. If implementation reveals the real change is bigger than Phase A's before/after implied, stop and confirm with the user before proceeding on that capability rather than quietly expanding it.
+
+**Constraints:**
+- Implement only approved capabilities — an adjacent improvement noticed mid-implementation gets named in the handoff, not built without separate approval (Standing Rule 2).
+- Preserve every "what it would NOT change" commitment Phase A made for each capability — MVP's teachers must not see stored semantics shift underneath a capability they didn't ask to change.
+- Still bound by decision 6 / STEP 8b's scope lock: implementing a capability must not collapse MVP's and academy-brain's pipelines into one shared implementation, even if that would be technically simpler.
+
+**Phase B scope lock — do NOT:**
+- Do not implement any capability Phase A marked "skip," or any capability the user did not explicitly approve.
+- Do not fold in STEP 8b's merge work (Prisma move, FK, transformation receipt) — Phase B only touches the digestion capability itself, wherever its code currently lives (MVP's repo, academy-brain's repo, or both).
+- Do not batch unrelated fixes into this step because "it's already touching that file" (Standing Rule 5).
+
+**Phase B output:** `docs/tickets/handoffs/step9-digestion-implementation.md` — which capabilities were approved, what was actually built for each against Phase A's before/after, what tests/verification ran, and confirmation nothing outside the approved list was touched
+
+**Phase B exit criteria:** every user-approved capability is implemented, tested, and matches Phase A's stated before/after; nothing marked "skip" or left unapproved was built; MVP's and academy-brain's pipelines remain two linked systems, not one merged implementation.
 
 ---
 
@@ -463,7 +530,9 @@ Concretely, replace these two module-level constants with values read from per-j
 
 ## GOAL
 
-CourseDeveloperStudio's frontend talks only to its own authenticated .NET backend (no silent demo fallback); its gate runner is a generic, DI-registered plugin system covering all 6 gate kinds; academy-brain lives inside the Studio monorepo as an internally-owned Python engine (DEC-004) behind a durable job queue and its own worker process, with credentials and artifacts under proper custody; Dr Mahmoud MVP's lesson-authoring flow lives inside Studio's frontend under one shared auth boundary, linked to Studio's core entities by real foreign keys, with one canonical, ownership-mapped database schema underneath all of it — and the entire customer-facing product is one linear, zero-configuration button sequence for every institute type, with a transformation receipt and plain-language blocking messages as the only additions to that sequence (DEC-005).
+**Near-term (STEPs 1–9, as scoped now):** CourseDeveloperStudio's frontend talks only to its own authenticated .NET backend (no silent demo fallback), behind its own real login page; its gate runner is a generic, DI-registered plugin system covering all 6 gate kinds; academy-brain lives inside the Studio monorepo as an internally-owned Python engine (DEC-004) behind a durable job queue and its own worker process, with credentials and artifacts under proper custody; the digestion-pipeline gap Dr. Mahmoud raised (text extraction without real content understanding) has a reviewed comparison against academy-brain's pipeline and the user-approved capabilities from it are implemented — and the entire customer-facing product is one linear, zero-configuration button sequence for every institute type (DEC-005).
+
+**Deferred (STEP 8b, unscheduled):** Dr Mahmoud MVP's lesson-authoring flow lives inside Studio's frontend under one shared auth boundary, linked to Studio's core entities by real foreign keys, with one canonical, ownership-mapped database schema underneath all of it, plus a transformation receipt and plain-language blocking messages on that flow (DEC-005). This remains the long-term goal — DEC-003's literal-merge decision is not reversed — it is just not being executed until the user explicitly authorizes STEP 8b.
 
 ---
 
@@ -471,24 +540,27 @@ CourseDeveloperStudio's frontend talks only to its own authenticated .NET backen
 
 | # | Step | Raised by | Date | The blocker | Resolution |
 |---|---|---|---|---|---|
-| 1 | STEP 1 | assistant | 2026-09-04 | A full solution `dotnet build` can't go green until STEP 3 lands — `GateRunnerService.cs` writes `QualityReceipt` properties that don't exist on the model (the exact defect STEP 3 is scoped to fix), and it lives in the same `CourseDeveloper.Infrastructure` project STEP 1's own code builds against. STEP 1's own changes introduce zero new errors; confirmed by isolating this exact error set against STEP 3's own citation. | Not blocking — informational. STEP 1 is otherwise complete; STEP 3 (already fully scoped, independent, allowed to run parallel per STEP 3's own "Starts when") resolves this when it lands. See `docs/tickets/handoffs/step1-backend-auth-di.md` for the full build trace. |
-| 2 | STEP 2 | system-architect | 2026-09-04 | Checked configurations target separate Supabase projects (`jbjfafyjqdjmzmdggzha` vs. Studio's checked-in default `gjxhfyfonjdcaimxjipp`); STEP 8 must first confirm the deployed refs. If they differ as configured, the `WorksheetProject.sessionId → course_sessions.id` FK is physically impossible until both schemas live in one database. | **Resolved 2026-09-04 (DEC-006):** user approved Studio's project (`gjxhfyfonjdcaimxjipp`) as canonical. STEP 8 must confirm the deployed refs match these checked-in defaults, then sequence consolidation/data transfer → approved `sessionId` reconciliation and zero-orphan validation → FK. |
-| 3 | STEP 2 | system-architect | 2026-09-04 | `.NET` backend uses one shared data source and opens repository connections without propagating the validated JWT identity; the deployed connection role is not visible in source. RLS ownership policies therefore either can be bypassed by a privileged/`BYPASSRLS` role or cannot resolve `auth.uid()` under a non-bypass role. | Decided in `docs/tickets/handoffs/step2-schema-ownership.md`: use a narrowly privileged authenticator role that can reach only `authenticated`, and set the role plus parameterized transaction-local JWT claims from the validated `sub` on the same connection/transaction as every protected query. Implementation is not yet assigned to a step — recommend STEP 4. |
+| 1 | STEP 1 | assistant | 2026-09-04 | A full solution `dotnet build` can't go green until STEP 3 lands — `GateRunnerService.cs` writes `QualityReceipt` properties that don't exist on the model (the exact defect STEP 3 is scoped to fix), and it lives in the same `CourseDeveloper.Infrastructure` project STEP 1's own code builds against. STEP 1's own changes introduce zero new errors; confirmed by isolating this exact error set against STEP 3's own citation. | **Resolved.** STEP 3 committed (`84b6ac7`); the model gained the missing `QualityReceipt` properties and the solution builds green. |
+| 2 | STEP 2 | system-architect | 2026-09-04 | Checked configurations target separate Supabase projects (`jbjfafyjqdjmzmdggzha` vs. Studio's checked-in default `gjxhfyfonjdcaimxjipp`); STEP 8b must first confirm the deployed refs. If they differ as configured, the `WorksheetProject.sessionId → course_sessions.id` FK is physically impossible until both schemas live in one database. | **Resolved 2026-09-04 (DEC-006), execution repointed 2026-09-05 (DEC-008):** user approved Studio's project (`gjxhfyfonjdcaimxjipp`) as canonical. This now executes under **STEP 8b** (deferred, unscheduled — still open, see Step Ledger), not the STEP 8 that now means "Studio login page." STEP 8b must confirm the deployed refs match these checked-in defaults, then sequence consolidation/data transfer → approved `sessionId` reconciliation and zero-orphan validation → FK. |
+| 3 | STEP 2 | system-architect | 2026-09-04 | `.NET` backend uses one shared data source and opens repository connections without propagating the validated JWT identity; the deployed connection role is not visible in source. RLS ownership policies therefore either can be bypassed by a privileged/`BYPASSRLS` role or cannot resolve `auth.uid()` under a non-bypass role. | **Resolved.** Folded into STEP 4's commit (`ac56469`: "GenerationJob durable queue + CourseDeveloper.Worker, fold in STEP 2 RLS/auth-context fix") per the design in `docs/tickets/handoffs/step2-schema-ownership.md`. |
 
 ## Step Ledger
 
+*Reconciled against `git log` on 2026-09-05 — the previous table had drifted from what was actually committed.*
+
 | Step | Owner | Status | Handoff artifact | Date |
 |---|---|---|---|---|
-| 1 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step1-backend-auth-di.md` | 2026-09-04 |
-| 2 | system-architect | Complete, pending user approval to commit | `docs/tickets/handoffs/step2-schema-ownership.md` | 2026-09-04 |
-| 3 | backend-dev | Complete, pending user approval to commit | `docs/tickets/handoffs/step3-gate-registry.md` | 2026-09-04 |
-| 4 | backend-dev | Committed | `docs/tickets/handoffs/step4-generation-job-worker.md` | 2026-09-04 |
-| 5 | backend-dev + coder | Code complete, live end-to-end run blocked (content + NotebookLM venv unavailable) | `docs/tickets/handoffs/step5-academy-brain-adapter.md` | 2026-09-04 |
-| 6 | devops-automator | Not started | | — |
-| 7 | frontend-developer | Not started | | — |
-| 8 | frontend-developer + backend-dev | Not started | | — |
-| 9 | system-architect | Not started | | — |
-| 10 | backend-dev | Not started | | — |
+| 1 | backend-dev | Committed (`339dbc6`) | `docs/tickets/handoffs/step1-backend-auth-di.md` | 2026-09-04 |
+| 2 | system-architect | Committed (`6423d5a`) | `docs/tickets/handoffs/step2-schema-ownership.md` | 2026-09-04 |
+| 3 | backend-dev | Committed (`84b6ac7`) | `docs/tickets/handoffs/step3-gate-registry.md` | 2026-09-04 |
+| 4 | backend-dev | Committed (`ac56469`) | `docs/tickets/handoffs/step4-generation-job-worker.md` | 2026-09-04 |
+| 5 | backend-dev + coder | Code committed (`62f5041`); live end-to-end run still blocked (content + NotebookLM venv unavailable) — unverified, not something a later commit has resolved | `docs/tickets/handoffs/step5-academy-brain-adapter.md` | 2026-09-04 |
+| 6 | devops-automator | Committed (`c63385f`) | `docs/tickets/handoffs/step6-worker-runtime.md` | 2026-09-04 |
+| 7 | frontend-developer | Committed (`74bf2d0`) | `docs/tickets/handoffs/step7-frontend-backend-wiring.md` | 2026-09-05 |
+| 8 | frontend-developer | Not started — reassigned 2026-09-05 (DEC-008) to Studio's own login page; gated on user confirming the STEP 1–7 product runs end-to-end | | — |
+| 8b | frontend-developer + backend-dev | Deferred, not scheduled (DEC-008) — former STEP 8 (full MVP merge), preserved verbatim, requires a fresh explicit user go-ahead | | — |
+| 9 | system-architect (Phase A) / backend-dev + coder (Phase B) | Phase A (diagnose+propose) done — `step9-digestion-diagnosis.md` — and user-approved. Phase B implemented and committed in three dependency-ordered batches: batch 1 R1-R4 (`a1e6721`), batch 2 R5-R8 (`f67f4ae`), batch 3 R9-R10 + §3.11 (`6c0c420`). Complete. | `docs/tickets/handoffs/step9-digestion-diagnosis.md` | 2026-09-05 |
+| 10 | backend-dev | Implemented (canonical vault writer, path-safety fixes, dossier sync, auth-forwarding proxy); Codex review in progress; not yet committed | `docs/tickets/handoffs/step10-vault-sync.md` | 2026-09-05 |
 | 11 | system-architect | Not started | | — |
 | 12 | backend-dev + coder | Not started | | — |
 

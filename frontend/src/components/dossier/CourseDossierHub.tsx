@@ -280,10 +280,13 @@ export function CourseDossierHub({ project, organization }: Props) {
 
     // Auto-sync real uploaded files to Obsidian Vault on disk
     try {
-      await syncCourseToObsidian(organization || null, project, undefined, undefined, updatedFiles);
-      setDropToast(`✅ Ingested ${fileList.length} file(s) and synced to Obsidian Vault on disk!`);
-    } catch {
-      setDropToast(`Successfully ingested ${fileList.length} file(s) into Course Dossier!`);
+      const syncResult = await syncCourseToObsidian(organization || null, project, undefined, undefined, updatedFiles);
+      setDropToast(syncResult.success
+        ? `✅ Ingested ${fileList.length} file(s) and synced to Obsidian Vault on disk!`
+        : `Ingested ${fileList.length} file(s), but vault sync was skipped: ${syncResult.error || syncResult.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown sync error';
+      setDropToast(`Ingested ${fileList.length} file(s), but vault sync failed: ${message}`);
     }
     setTimeout(() => setDropToast(null), 5000);
   };

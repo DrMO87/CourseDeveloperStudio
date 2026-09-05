@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Plus, Trash2, Palette, CheckCircle2, UploadCloud, Image as ImageIcon, Loader2 } from 'lucide-react';
 import type { BrandPalette } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
 
 interface Props {
   palette: BrandPalette;
@@ -28,14 +29,23 @@ export function BrandPaletteEditor({ palette, onChange, orgSlug, logoUrl, onLogo
       formData.append('orgSlug', orgSlug);
       formData.append('logoType', 'primary');
 
+      // The route forwards this to the backend's vault sync, which requires the same
+      // bearer token every other backend call uses (see obsidianSync.ts).
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
       const res = await fetch('/api/upload-logo', {
         method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
       });
       const data = await res.json();
       if (data.success && data.url) {
         setLogoPreview(data.url);
         onLogoChange?.(data.url);
+        if (!data.vaultSynced) {
+          console.warn('Logo vault sync skipped:', data.vaultError);
+        }
       } else {
         alert('Failed to upload logo: ' + (data.error || 'Unknown error'));
       }

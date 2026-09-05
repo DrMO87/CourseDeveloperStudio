@@ -8,12 +8,7 @@ import {
   Download,
   FileText,
   Eye,
-  Code,
-  BookOpen,
-  Folder,
-  Layers,
-  Sparkles,
-  ExternalLink
+  Code
 } from 'lucide-react';
 import { CourseProject, CourseSession, Organization } from '@/lib/types';
 
@@ -30,36 +25,50 @@ export function ObsidianFileViewerModal({
   fileName,
   isOpen,
   onClose,
-  org,
-  project,
-  session
+  project
 }: Props) {
   const [activeTab, setActiveTab] = useState<'RENDERED' | 'RAW'>('RENDERED');
   const [copied, setCopied] = useState(false);
   const [fileContent, setFileContent] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
-
-  const orgName = org?.name || 'Horus University — Egypt';
-  const courseName = project?.name || 'Instrumental Analysis';
-  const sessionCode = session?.session_code || 'Lec 01';
-  const sessionTitle = session?.title || 'Spectrophotometry and EMR';
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!fileName || !isOpen) return;
 
+    let cancelled = false;
     setLoading(true);
-    // Generate authentic domain-aware content for each specific PARA file
-    const content = getFileSpecificContent(fileName, {
-      orgName,
-      courseName,
-      sessionCode,
-      sessionTitle,
-      brandColors: org?.brand_palette?.approved || ['#002147', '#FFB81C', '#FFFFFF']
-    });
+    setError(null);
 
-    setFileContent(content);
-    setLoading(false);
-  }, [fileName, isOpen, orgName, courseName, sessionCode, sessionTitle, org]);
+    // STEP 10: this used to synthesize plausible-looking content by matching the
+    // filename — the viewer never actually read the file this vault sync wrote. It now
+    // reads the real, synced note, which is the whole point of a "one canonical writer".
+    const params = new URLSearchParams({ path: fileName });
+    if (project?.slug) params.set('projectSlug', project.slug);
+
+    fetch(`/api/obsidian/read?${params.toString()}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.success) {
+          setFileContent(data.content ?? '');
+        } else {
+          setError(data.error || 'Could not read this file.');
+          setFileContent('');
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err.message || 'Could not read this file.');
+          setFileContent('');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [fileName, isOpen, project?.slug]);
 
   if (!isOpen || !fileName) return null;
 
@@ -165,6 +174,8 @@ export function ObsidianFileViewerModal({
         <div className="p-6 overflow-y-auto flex-1 font-sans text-sm leading-relaxed">
           {loading ? (
             <div className="py-16 text-center text-slate-400 animate-pulse">Loading note content...</div>
+          ) : error ? (
+            <div className="py-16 text-center text-red-500">{error}</div>
           ) : activeTab === 'RAW' ? (
             <pre className="p-4 bg-slate-950 text-slate-200 font-mono text-xs rounded-2xl overflow-x-auto leading-relaxed border border-slate-800">
               <code>{fileContent}</code>
@@ -316,232 +327,3 @@ function renderFormattedContent(markdownText: string) {
   flushTable();
   return elements;
 }
-
-// ── Content Generator for each PARA File ──
-
-function getFileSpecificContent(fileName: string, ctx: {
-  orgName: string;
-  courseName: string;
-  sessionCode: string;
-  sessionTitle: string;
-  brandColors: string[];
-}): string {
-  const base = fileName.split('/').pop() || '';
-
-  if (base.includes('blueprint')) {
-    return `# 📋 Course Session Exam & Assessment Blueprint
-**Course:** ${ctx.courseName}
-**Session:** ${ctx.sessionCode} — ${ctx.sessionTitle}
-**Institution:** ${ctx.orgName}
-
----
-
-## 1. Intended Learning Outcomes (ILOs)
-- **K1 (Knowledge):** Recall electromagnetic radiation spectrum regions (UV 200-400 nm, Vis 400-800 nm) and the mathematical statement of Beer-Lambert Law.
-- **I1 (Intellectual):** Derive molar absorptivity ($\\\\epsilon$) and differentiate between chemical vs instrumental deviations from Beer's Law.
-- **P1 (Practical/Clinical):** Calculate unknown drug concentrations in multi-component pharmaceutical formulations from UV-Vis standard curves.
-
----
-
-## 2. Assessment Matrix & Cognitive Weightage
-
-| Cognitive Level (Bloom's) | Target Weight | Question Types | Sample Assessment Prompt |
-|---|---|---|---|
-| **Remembering (Recall)** | 25% | Multiple Choice (MCQ) | What wavelength range defines the ultraviolet spectrum? |
-| **Understanding (Comprehension)** | 35% | Short Explanation / Graphs | Explain the physical meaning of molar absorptivity $\\\\epsilon$. |
-| **Applying (Problem Solving)** | 25% | Mathematical Calculation | Calculate the concentration of Paracetamol with $A=0.650$, $b=1\\\\text{ cm}$, $\\\\epsilon=13500$. |
-| **Analyzing & Evaluating** | 15% | Clinical Case Scenario | Determine the cause of non-linear absorbance curve in high-concentration samples. |
-
----
-
-## 3. Examination Distribution
-- Total Question Target: **25 Questions**
-- Pass Threshold: **60%**
-- Accreditation Gate: **NARS & ABET Compliance Certified**
-`;
-  }
-
-  if (base.includes('slides-source')) {
-    return `# 📽️ Slide Deck Source Script & Presentation Notes
-**Course:** ${ctx.courseName} | **Session:** ${ctx.sessionCode} — ${ctx.sessionTitle}
-**Target Deck:** 16 Bilingual Slides (English / Arabic)
-
----
-
-### Slide 01: Lecture Orientation & Scope
-- **Title (EN):** ${ctx.sessionTitle}
-- **Title (AR):** أهداف ومحاور المحاضرة الأساسية
-- **Bloom Level:** Remember (تذكر)
-- **lecturer script:** Welcome students. Today we explore the quantitative foundations of ${ctx.sessionTitle}.
-- **Key Bullet Points:**
-  - Electromagnetic radiation & photon energy ($E = h\\\\nu$)
-  - Beer-Lambert Law mathematical derivation
-  - Analytical spectrophotometer component topography
-
----
-
-### Slide 02: Theoretical Principles & Calculus Derivation
-- **Title (EN):** Calculus Derivation of Beer-Lambert Absorption
-- **Title (AR):** الاستنتاج الرياضي لقانون بير-لامبرت
-- **Formula:** $$A = -\\\\log_{10}(T) = \\\\epsilon \\\\cdot b \\\\cdot c$$
-- **lecturer note:** Emphasize why absorbance is unitless while molar absorptivity has units of $\\\\text{L}\\\\cdot\\\\text{mol}^{-1}\\\\cdot\\\\text{cm}^{-1}$.
-
----
-
-### Slide 03: Clinical Application & Pharmaceutical Assay
-- **Title (EN):** Paracetamol Assay & Quality Assurance Case Study
-- **Title (AR):** دراسة حالة: معايرة الباراسيتامول في المستحضرات الصيدلانية
-- **Takeaway:** Routine QC release testing requires verified linear calibration ranges ($R^2 > 0.999$).
-`;
-  }
-
-  if (base.includes('home-summary')) {
-    return `# 📝 Take-Home Summary & Student Review Sheet
-**Course:** ${ctx.courseName}
-**Session:** ${ctx.sessionCode} — ${ctx.sessionTitle}
-
----
-
-## 💡 Executive Summary
-This session established the quantitative relationship between light attenuation and analyte concentration according to the **Beer-Lambert Law**:
-$$A = \\\\epsilon b c$$
-
-## 🔑 Key Terms & Formula Cheat Sheet
-- **Transmittance ($T$):** Fraction of incident light transmitted through the sample ($T = I / I_0$).
-- **Absorbance ($A$):** Logarithmic optical density ($A = -\\\\log_{10} T = 2 - \\\\log_{10} \\\\%T$).
-- **Molar Absorptivity ($\\\\epsilon$):** Intrinsic molecular constant reflecting light absorption efficiency at a specific $\\\\lambda_{\\\\max}$.
-- **Bathochromic Shift:** Shift of absorption maximum to a longer wavelength (Red Shift).
-- **Hypsochromic Shift:** Shift of absorption maximum to a shorter wavelength (Blue Shift).
-
----
-
-## 🧪 Self-Assessment Practice Questions
-1. A solution of drug $X$ has a transmittance of $25\\\\%$ in a $1.0\\\\text{ cm}$ cell. Calculate its absorbance ($A = 2 - \\\\log_{10}(25) = 0.602$).
-2. List three factors causing real deviations from Beer-Lambert Law at concentrations above $0.01\\\\text{ M}$.
-`;
-  }
-
-  if (base.includes('decisions')) {
-    return `# 🏛️ Course Architecture & Swarm Decision Log
-**Project:** ${ctx.courseName}
-**Session:** ${ctx.sessionCode}
-
----
-
-## Quality Gate & Pipeline Decision Trace
-- [x] **Gate 1 (Brand Setup):** Locked palette to approved institutional colors (${ctx.brandColors.join(', ')}).
-- [x] **Gate 2 (Dossier Ingestion):** Extracted 11 authentic lecture milestones from Faculty of Pharmacy Course Specification.
-- [x] **Gate 3 (Curriculum Architecture):** Verified alignment with NARS competency framework and Bloom's cognitive taxonomy.
-- [x] **Gate 4 (Slide Synthesis):** Generated 16 bilingual slides with KaTeX derivations and ICH Q2 validation metrics.
-- [x] **Gate 5 (NotebookLM Export):** Package bundled into Obsidian Second Brain PARA tier.
-
----
-
-## Audit Metadata
-- **Engine:** Course Developer Studio Autonomous Swarm
-- **Accreditation Level:** Professional Year 3 Pharmacy
-- **Status:** Quality Certified ✅
-`;
-  }
-
-  if (base.includes('Branding')) {
-    return `# 🎨 Institutional Brand Contract & Visual Style Rules
-**Institution:** ${ctx.orgName}
-
----
-
-## 1. Palette Specification
-- **Primary Color:** \`${ctx.brandColors[0] || '#002147'}\` (Navy Blue)
-- **Accent Gold:** \`${ctx.brandColors[1] || '#FFB81C'}\` (Imperial Gold)
-- **Background Contrast:** \`${ctx.brandColors[2] || '#FFFFFF'}\` (Pure White / Deep Slate)
-
-## 2. Typography Rules
-- **Display Headings:** Outfit / Syne Bold
-- **Body & Formulas:** Inter / JetBrains Mono (for LaTeX & KaTeX equations)
-- **Minimum Slide Font Size:** 18pt for body, 28pt for primary headlines
-
-## 3. Slide Template Rules
-- Aspect Ratio: **16:9 Widescreen**
-- Header Badge: Institutional Crest positioned top-right
-- Footer: Course Code & Session Milestone
-`;
-  }
-
-  if (base.includes('Mascot')) {
-    return `# 🦅 Institutional Mascot & Character Guidelines
-**Institution:** ${ctx.orgName}
-**Mascot:** Horus Falcon of Wisdom
-
----
-
-## 1. Mascot Usage Roles
-- **Tutor Cue:** Appears on slide corners when presenting a key clinical takeaway or exam warning.
-- **Tone:** Academic, authoritative, inspiring, and supportive.
-
-## 2. Placement Restrictions
-- Do not obscure chemical structures or KaTeX formulas.
-- Maintain a minimum 24px safety margin from slide edges.
-`;
-  }
-
-  if (base.includes('Catalog') || base.includes('Source_Material')) {
-    return `# 📚 Course Reference Material & Evidence Catalog
-**Course:** ${ctx.courseName}
-
----
-
-## Primary Ground-Truth Sources
-1. **British Pharmacopoeia (BP) & United States Pharmacopeia (USP):**
-   - Spectrophotometric Assays and Dissolution Test Specifications.
-2. **Vogel's Textbook of Quantitative Chemical Analysis (6th Edition):**
-   - Instrumentation and Optical Bench Geometries.
-3. **ICH Harmonised Tripartite Guideline Q2(R1):**
-   - Validation of Analytical Procedures: Text and Methodology.
-4. **Faculty of Pharmacy Course Specification (PHAR-301):**
-   - Lecture hours, ILO matrices, and laboratory schedules.
-`;
-  }
-
-  if (base.includes('Rubric') || base.includes('Bloom')) {
-    return `# 📊 Bloom's Taxonomy Cognitive Grading Rubric
-**Pedagogical Standard:** Accredited Academic Grading Framework
-
----
-
-## Cognitive Level Breakdown & Grading Criteria
-
-| Level | Action Verbs | Target Attainment Criteria |
-|---|---|---|
-| **1. Remember** | Define, State, List, Recall | Student accurately states definitions and constants without error. |
-| **2. Understand** | Explain, Describe, Differentiate | Student explains optical principles and contrasts instrumentation types. |
-| **3. Apply** | Calculate, Solve, Quantify | Student computes drug concentrations with correct units and significant figures. |
-| **4. Analyze** | Diagnose, Deduce, Correlate | Student interprets non-linear curves and identifies spectral interferences. |
-| **5. Evaluate** | Justify, Validate, Critique | Student assesses method suitability according to ICH Q2 precision/accuracy gates. |
-`;
-  }
-
-  if (base.includes('pptx') || base.includes('Legacy')) {
-    return `# 📦 Legacy Lecture Archive Metadata
-**File:** ${fileName}
-
----
-
-## Archive Details
-- **Source Format:** Microsoft PowerPoint Presentation (.pptx)
-- **Slide Count:** 32 Slides
-- **Status:** Archived & Migrated to Modern 16-Slide Interactive Canvas
-- **Conversion Quality:** 100% Formulas & ILOs preserved in modern Studio Swarm.
-`;
-  }
-
-  return `# 📄 Obsidian Second Brain Note
-**File:** ${fileName}
-**Course:** ${ctx.courseName} | **Session:** ${ctx.sessionCode}
-
----
-
-## Document Content
-This note is part of the **PARA Vault** (${ctx.courseName}). It contains academic records, research summaries, and pedagogical resources for ${ctx.sessionTitle}.
-`;
-}
-

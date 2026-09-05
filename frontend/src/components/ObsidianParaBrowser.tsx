@@ -195,7 +195,7 @@ export default function ObsidianParaBrowser({
               files.map((file, idx) => (
                 <div
                   key={idx}
-                  onClick={() => onOpenFile?.(file.name)}
+                  onClick={() => onOpenFile?.(`${selectedFolder}/${file.name}`)}
                   className="p-3 bg-slate-50 dark:bg-black/40 rounded-2xl border border-slate-200 dark:border-white/10 flex items-center justify-between text-xs hover:border-amber-400/40 dark:hover:border-gold-400/30 transition-all cursor-pointer group"
                 >
                   <div className="flex items-center gap-2 min-w-0">

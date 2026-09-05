@@ -8,6 +8,11 @@ const execFileAsync = promisify(execFile);
 
 const VAULT_ROOT = process.env.VAULT_ROOT ? path.resolve(process.env.VAULT_ROOT) : path.resolve(process.cwd(), '..');
 const defaultNlmPath = path.resolve(VAULT_ROOT, '.venv/Scripts/nlm.exe');
+
+function safeSegment(raw: string): string {
+  const cleaned = raw.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^[._]+|[._]+$/g, '');
+  return cleaned || 'untitled';
+}
 const NLM_EXE = process.env.NLM_EXE || (fs.existsSync(defaultNlmPath) ? defaultNlmPath : 'nlm');
 
 export const maxDuration = 120;
@@ -16,10 +21,11 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, notebookName, notebookId, filePath, outputDir, instructions, projectSlug } = body;
+    const { action, notebookName, notebookId, filePath, instructions, projectSlug } = body;
 
     let args: string[] = [];
     let timeout = 30_000;
+    let notebookIdentifierUsed: string | undefined;
 
     let resolvedId = notebookId;
     if (!resolvedId && notebookName && !['create_notebook', 'list_notebooks', 'live_auth_check', 'doctor', 'launch_login'].includes(action)) {
@@ -140,12 +146,15 @@ export async function POST(req: NextRequest) {
           if (found) {
             targetPath = found;
           } else {
-            // Write fallback note inside the project's lecture folder so Google NotebookLM upload always succeeds
-            const targetDir = path.join(VAULT_ROOT, 'vaults', pSlug, '01_Projects', pSlug, dirName);
-            fs.mkdirSync(targetDir, { recursive: true });
-            const fallbackPath = path.join(targetDir, fileName);
-            fs.writeFileSync(fallbackPath, `# ${fileName.replace(/\.md$/, '')}\n**Session**: ${dirName}\n**Course**: ${pSlug}\n\nCourse curriculum and ILO specification for ${dirName}.`, 'utf8');
-            targetPath = fallbackPath;
+            // STEP 10: this used to write a fabricated placeholder note into the vault so
+            // the NotebookLM upload would "succeed" — a second vault writer, and exactly
+            // the invented filler content that step forbids. Fail loudly instead: the
+            // caller needs to know the real source file doesn't exist yet, not upload a
+            // fake one to NotebookLM.
+            return NextResponse.json({
+              success: false,
+              error: `Source file not found in the vault: ${fileName}. Sync the course to the vault before adding it as a NotebookLM source.`,
+            }, { status: 404 });
           }
         }
 
@@ -215,7 +224,16 @@ export async function POST(req: NextRequest) {
       case 'download_all': {
         const identifier = resolvedId || notebookId || notebookName;
         if (!identifier) return NextResponse.json({ success: false, error: 'notebookName or notebookId required' }, { status: 400 });
-        const dlDir = outputDir || path.join(VAULT_ROOT, 'vaults', projectSlug || 'instrumental-analysis-pharmaceutical', '80-generation', 'exports');
+        // STEP 10: this used to write straight into vaults/<project>/80-generation/exports
+        // via an entirely caller-controlled `outputDir` with no containment check at all —
+        // a second, uncontained vault writer. Downloads now land in a non-vault staging
+        // directory; /api/obsidian/import-nlm-downloads moves them into the vault through
+        // the backend's canonical writer afterward (safeSegment() below must match the one
+        // ObsidianVaultService.SyncNlmDownloadsAsync applies server-side, so both sides
+        // resolve the same staging path).
+        const safeIdentifier = safeSegment(String(identifier));
+        notebookIdentifierUsed = safeIdentifier;
+        const dlDir = path.join(VAULT_ROOT, '.nlm-downloads', safeSegment(projectSlug || 'default'), safeIdentifier);
         fs.mkdirSync(dlDir, { recursive: true });
         args = ['download', 'all', identifier, '-d', dlDir, '--slide-format', 'pptx', '--no-progress'];
         timeout = 120_000;
@@ -251,6 +269,7 @@ export async function POST(req: NextRequest) {
       output,
       error: errOutput || undefined,
       data: parsed,
+      notebookIdentifier: notebookIdentifierUsed,
     });
   } catch (err: any) {
     const message = err?.stderr || err?.stdout || err?.message || 'Unknown error';

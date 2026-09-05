@@ -6,17 +6,33 @@ export const dynamic = 'force-dynamic';
 
 const VAULT_ROOT = process.env.VAULT_ROOT ? path.resolve(process.env.VAULT_ROOT) : path.resolve(process.cwd(), '..');
 
+// Only these four PARA folders are ever valid — anything else (including a "../.."
+// payload) is rejected outright rather than joined into a filesystem path.
+const PARA_CATEGORIES = new Set(['01_Projects', '02_Areas', '03_Resources', '04_Archive']);
+
+// Vault project slugs are filesystem path segments derived from user-controlled data
+// (a project's slug field); reduce to a safe single segment before joining.
+function safeSegment(raw: string): string {
+  const cleaned = raw.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^[._]+|[._]+$/g, '');
+  return cleaned || 'untitled';
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const category = searchParams.get('category') || '01_Projects';
+    const categoryParam = searchParams.get('category') || '01_Projects';
     const projectSlug = searchParams.get('projectSlug');
 
+    if (!PARA_CATEGORIES.has(categoryParam)) {
+      return NextResponse.json({ success: false, error: 'Unknown category', files: [] }, { status: 400 });
+    }
+    const category = categoryParam;
+
     let targetDirs: string[] = [];
-    
+
     // 1. If projectSlug is given, check that specific project vault first
     if (projectSlug) {
-      const specificDir = path.join(VAULT_ROOT, 'vaults', projectSlug, category);
+      const specificDir = path.join(VAULT_ROOT, 'vaults', safeSegment(projectSlug), category);
       try {
         await fs.access(specificDir);
         targetDirs.push(specificDir);

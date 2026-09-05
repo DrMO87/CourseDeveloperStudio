@@ -4,51 +4,91 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
+const LOGO_TYPES = new Set(['university', 'faculty', 'department', 'primary']);
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/svg+xml': 'svg',
+  'image/webp': 'webp',
+};
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+
+function isSafePathSegment(value: unknown): value is string {
+  return typeof value === 'string'
+    && /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(value)
+    && value !== '.'
+    && value !== '..';
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File;
-    const orgSlug = formData.get('orgSlug') as string;
-    const logoType = (formData.get('logoType') as string) || 'primary'; // 'university' | 'faculty' | 'department' | 'primary'
+    const file = formData.get('file');
+    const orgSlug = formData.get('orgSlug');
+    const logoType = formData.get('logoType') || 'primary';
 
-    if (!file || !orgSlug) {
+    if (!(file instanceof File) || !isSafePathSegment(orgSlug)) {
       return NextResponse.json({ success: false, error: 'Missing file or orgSlug' }, { status: 400 });
+    }
+    if (typeof logoType !== 'string' || !LOGO_TYPES.has(logoType)) {
+      return NextResponse.json({ success: false, error: 'Invalid logoType' }, { status: 400 });
+    }
+
+    const ext = IMAGE_EXTENSIONS[file.type];
+    if (!ext) {
+      return NextResponse.json({ success: false, error: 'Unsupported image type' }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
     const safeFileName = `${orgSlug}-${logoType}-logo.${ext}`;
 
-    // 1. Save to Next.js public directory for instant web preview
+    // Save to Next.js public directory for instant web preview. This is app asset
+    // storage, not a vault write, so it isn't subject to STEP 10's "one canonical vault
+    // writer" rule — it's the only filesystem write this route makes directly.
     const publicDir = path.join(process.cwd(), 'public', 'logos', orgSlug);
     fs.mkdirSync(publicDir, { recursive: true });
     const publicFilePath = path.join(publicDir, safeFileName);
     fs.writeFileSync(publicFilePath, buffer);
     const webUrl = `/logos/${orgSlug}/${safeFileName}`;
 
-    // 2. Save to Obsidian Vault Template Area assets
-    const vaultTemplateAssetDir = path.join(process.cwd(), '..', 'obsidian-vault-template', '02_Areas', orgSlug, '_assets');
-    fs.mkdirSync(vaultTemplateAssetDir, { recursive: true });
-    fs.writeFileSync(path.join(vaultTemplateAssetDir, safeFileName), buffer);
-
-    // 3. Save to any active cloned project vaults
-    const vaultsBaseDir = path.join(process.cwd(), '..', 'vaults');
-    if (fs.existsSync(vaultsBaseDir)) {
-      const activeVaults = fs.readdirSync(vaultsBaseDir);
-      for (const v of activeVaults) {
-        const vAssetDir = path.join(vaultsBaseDir, v, '02_Areas', orgSlug, '_assets');
-        if (fs.existsSync(path.join(vaultsBaseDir, v))) {
-          fs.mkdirSync(vAssetDir, { recursive: true });
-          fs.writeFileSync(path.join(vAssetDir, safeFileName), buffer);
+    // Vault copy goes through the backend's ObsidianVaultService — the one component
+    // allowed to write into vaults/ (STEP 10). This route used to copy the logo into the
+    // vault directly, bypassing the backend entirely; that write is gone, replaced by this
+    // forwarded call, the same auth-forwarding-proxy pattern as /api/obsidian/sync. A sync
+    // failure doesn't fail the upload (the web preview above already succeeded) but is
+    // reported truthfully, never silently swallowed.
+    const authHeader = req.headers.get('authorization');
+    let vaultSynced = false;
+    let vaultError: string | undefined;
+    if (!authHeader) {
+      vaultError = 'Not signed in — logo saved for web preview only, not synced to the vault.';
+    } else {
+      try {
+        const backendForm = new FormData();
+        backendForm.append('organizationSlug', orgSlug);
+        backendForm.append('file', new Blob([buffer], { type: file.type }), safeFileName);
+        const backendRes = await fetch(`${API_BASE_URL}/api/ObsidianSync/sync-org-logo`, {
+          method: 'POST',
+          headers: { Authorization: authHeader },
+          body: backendForm,
+        });
+        if (backendRes.ok) {
+          vaultSynced = true;
+        } else {
+          vaultError = `Vault sync failed: ${backendRes.status} ${(await backendRes.text().catch(() => '')).slice(0, 200)}`;
         }
+      } catch (err: any) {
+        vaultError = `Vault sync failed: ${err.message || 'network error'}`;
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       url: webUrl,
       fileName: safeFileName,
-      path: publicFilePath 
+      path: publicFilePath,
+      vaultSynced,
+      vaultError,
     });
   } catch (err: any) {
     console.error('Logo upload error:', err);

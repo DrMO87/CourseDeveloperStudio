@@ -32,7 +32,7 @@ import {
   ClipboardPaste,
 } from 'lucide-react';
 
-import { syncCourseToObsidian } from '@/lib/obsidianSync';
+import { syncCourseToObsidian, importNlmDownloadsToVault } from '@/lib/obsidianSync';
 import type { Organization, CourseProject, CourseSession } from '@/lib/types';
 
 interface Props {
@@ -441,12 +441,9 @@ export function NotebookLMPanel({
     const name = notebookName.trim() || defaultNotebookName;
     if (!name) return;
     const pSlug = project?.slug || 'instrumental-analysis-pharmaceutical';
-    const sid = sessionCode || 'Lec 01';
-    const vaultRoot = process.env.NEXT_PUBLIC_VAULT_ROOT || '.';
-    const outputDir = `${vaultRoot}/vaults/${pSlug}/80-generation/${sid}`;
 
     setStep('download', 'running', 'Downloading artifacts from NotebookLM...');
-    addLog(`📥 Downloading all generated artifacts to ${pSlug}/80-generation/${sid}...`);
+    addLog(`📥 Downloading all generated artifacts...`);
     try {
       let resolvedId = activeNotebookId;
       if (!resolvedId) {
@@ -454,8 +451,8 @@ export function NotebookLMPanel({
         try {
           const listRes = await callNlm('list_notebooks', {});
           const nbList = JSON.parse(listRes.output || '[]');
-          const match = nbList.find((n: any) => 
-            n.title === name || 
+          const match = nbList.find((n: any) =>
+            n.title === name ||
             (project?.name && n.title?.includes(project.name))
           );
           if (match) {
@@ -468,18 +465,35 @@ export function NotebookLMPanel({
       const dl = await callNlm('download_all', {
         notebookId: resolvedId,
         notebookName: name,
-        outputDir,
         projectSlug: pSlug
       });
 
-      setStep('download', 'success', `Saved to 80-generation/${sid} ✓`);
       addLog(`✅ Artifacts downloaded successfully!`);
       if (dl.output) addLog(`📄 Output: ${dl.output.substring(0, 150)}`);
+      await importDownloadsIntoVault(dl.notebookIdentifier);
     } catch (e: any) {
       setStep('download', 'error', e.message?.substring(0, 120));
       addLog(`⚠️ Download error: ${e.message}`);
     }
   };
+
+  // download_all only stages files on disk (frontend/src/app/api/nlm's own staging dir,
+  // not the vault); this moves them into the vault through the backend's canonical writer.
+  const importDownloadsIntoVault = useCallback(async (notebookIdentifier?: string) => {
+    if (!project?.id || !notebookIdentifier) {
+      setStep('download', 'success', 'Downloaded (vault import needs a saved project)');
+      return;
+    }
+    addLog('📦 Importing downloaded artifacts into the vault...');
+    const result = await importNlmDownloadsToVault(project.id, notebookIdentifier);
+    if (result.success) {
+      setStep('download', 'success', 'Downloaded & synced to vault ✓');
+      addLog('✅ Artifacts synced into the vault.');
+    } else {
+      setStep('download', 'success', 'Downloaded (vault sync failed)');
+      addLog(`⚠️ Vault import failed: ${result.message}`);
+    }
+  }, [project, addLog, setStep]);
 
   // ═══════════════════════════════════════════════════════════════════
   // Full 6-Step Pipeline
@@ -631,11 +645,10 @@ export function NotebookLMPanel({
       const dl = await callNlm('download_all', {
         notebookId: activeId,
         notebookName: name,
-        outputDir: `${vaultRoot}/vaults/${pSlug}/80-generation/${sid}`,
         projectSlug: pSlug
       });
-      setStep('download', 'success', `All artifacts saved to 80-generation/${sid}`);
       addLog(`✅ Downloaded: ${dl.output?.substring(0, 120)}`);
+      await importDownloadsIntoVault(dl.notebookIdentifier);
     } catch (e: any) {
       setStep('download', 'error', e.message?.substring(0, 120));
       addLog(`⚠️ Download: ${e.message}`);
@@ -1051,7 +1064,7 @@ export function NotebookLMPanel({
           <div className="p-2.5 bg-slate-50 dark:bg-black/30 rounded-xl border border-slate-200 dark:border-white/5 flex items-center justify-between text-[11px] text-slate-500 dark:text-white/60">
             <div className="flex items-center gap-1.5 font-mono">
               <FolderCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>Vault Target: <code className="text-slate-800 dark:text-gold-400">vaults/{project?.slug || 'course'}/80-generation/{sessionCode || 's1'}/</code></span>
+              <span>Vault Target: <code className="text-slate-800 dark:text-gold-400">vaults/{project?.slug || 'course'}/03_Resources/NotebookLM_Generated/</code></span>
             </div>
           </div>
 

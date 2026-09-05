@@ -53,7 +53,7 @@ public class AgentOrchestrator : IAgentOrchestrator
             case PipelineStage.BUNDLE:
                 return await RunBundleAssemblySwarmAsync(sessionId, org, project, onThoughtLogged);
             case PipelineStage.ARTIFACTS:
-                return await RunArtifactsGenerationSwarmAsync(sessionId, org, project, onThoughtLogged);
+                return await RunArtifactsGenerationSwarmAsync(sessionId, org, project, session, onThoughtLogged);
             default:
                 throw new ArgumentOutOfRangeException(nameof(stage));
         }
@@ -178,7 +178,7 @@ public class AgentOrchestrator : IAgentOrchestrator
         return "{\"status\": \"BUNDLE_ASSEMBLED\"}";
     }
 
-    private async Task<string> RunArtifactsGenerationSwarmAsync(Guid sessionId, Organization org, CourseProject project, Action<AgentSwarmLog> log)
+    private async Task<string> RunArtifactsGenerationSwarmAsync(Guid sessionId, Organization org, CourseProject project, CourseSession session, Action<AgentSwarmLog> log)
     {
         log(new AgentSwarmLog
         {
@@ -201,6 +201,11 @@ public class AgentOrchestrator : IAgentOrchestrator
             AgentThoughts = $"Writing final Markdown bundle and frontmatter to Obsidian PARA folder ({obsidianPath}).",
             TokensConsumed = 310
         });
+
+        // This call is the fix for the bug this stage used to hide: it used to log the
+        // sentence below without ever writing anything. If the sync throws, that must
+        // surface as a real pipeline failure, not a logged success.
+        await _obsidianService.SyncSessionToVaultAsync(session, project, org);
 
         return "{\"status\": \"ARTIFACTS_GENERATED_AND_SYNCED\"}";
     }
