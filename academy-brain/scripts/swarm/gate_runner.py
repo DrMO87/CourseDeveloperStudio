@@ -7,17 +7,26 @@ receipt is the audit trail that replaces human supervision.
 from __future__ import annotations
 
 import argparse
+import inspect
 import sys
 from pathlib import Path
 
 import yaml
 
-from swarm import gates, paths, prepare
+from swarm import gates, org_config, paths, prepare
 from swarm.paths import validate_session_id
 
 
-def run_gates(text: str, gate_names: list[str]) -> list[gates.GateResult]:
-    """Run each named gate. An unknown or crashing gate yields UNVERIFIED."""
+def run_gates(
+    text: str, gate_names: list[str], config: org_config.OrgConfig | None = None
+) -> list[gates.GateResult]:
+    """Run each named gate. An unknown or crashing gate yields UNVERIFIED.
+
+    STEP 12: ``config`` is threaded to any registered gate whose signature declares a
+    ``config`` parameter (brand-palette, arabic-ratio, trainer-boundary); every other gate's
+    single-argument ``fn(text)`` contract is untouched, so this never rewrites a gate that
+    has no institute-specific rule values.
+    """
     results: list[gates.GateResult] = []
     for name in gate_names:
         fn = gates.REGISTRY.get(name)
@@ -25,7 +34,10 @@ def run_gates(text: str, gate_names: list[str]) -> list[gates.GateResult]:
             results.append(gates.GateResult(name, gates.UNVERIFIED, "gate not registered"))
             continue
         try:
-            results.append(fn(text))
+            if config is not None and "config" in inspect.signature(fn).parameters:
+                results.append(fn(text, config=config))
+            else:
+                results.append(fn(text))
         except Exception as exc:  # a crashing gate must not pass silently
             results.append(gates.GateResult(name, gates.UNVERIFIED, f"gate raised: {exc}"))
     return results
@@ -72,13 +84,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("target", type=Path)
     parser.add_argument("--gates", nargs="+", required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--org-config",
+        type=Path,
+        default=None,
+        help="Path to a per-job org-config JSON file (see contracts/org-config/org-config.schema.json). "
+        "Omit for Techno Square's default values (standalone/manual/legacy invocation only).",
+    )
     args = parser.parse_args(argv)
 
     raw = args.target.read_text(encoding="utf-8")
     text, audience = prepare.learner_text(raw)
     run, skipped = prepare.applicable(args.gates, audience)
 
-    results = run_gates(text, run)
+    org_cfg = org_config.for_org_config(args.org_config)
+    results = run_gates(text, run, org_cfg)
     # A gate that does not apply is recorded, never silently dropped.
     for name in skipped:
         results.append(

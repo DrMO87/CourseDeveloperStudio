@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://courseDeveloperStudio/contracts/org-config/org-config.schema.json",
+  "title": "Organization config snapshot — STEP 12 multi-institute gate parameterization",
+  "description": "Shape of the per-job organization-config snapshot: GenerationJob -> CourseProject.OrganizationId -> Organization, resolved and serialized once at enqueue time (immutable per job — re-resolving a live Organization row mid-job would break reproducibility if it changed between attempts). This is independent of contracts/generation-job/*.schema.json's own contractVersion. Two consumers read it: academy-brain's brand-palette/arabic-ratio/trainer-boundary gates (via --org-config <path>, a file written from the brandPalette/languagePolicy/boundaryTerms subset — see swarm/org_config.py) and CourseDeveloper.Infrastructure's NBLM-prompt-preflight fact-corrector/reevaluator (via the nblmPromptFields subset, read directly from GenerationJob.Payload in-process, no file needed).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "organizationId", "brandPalette", "languagePolicy", "boundaryTerms", "nblmPromptFields"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "This snapshot schema's own version, independent of the generation-job request/result contractVersion."
+    },
+    "organizationId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The Organization this snapshot was resolved from, for audit/debugging only — gates must not re-resolve it."
+    },
+    "brandPalette": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approved", "retired"],
+      "properties": {
+        "approved": { "type": "array", "items": { "type": "string" } },
+        "retired": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The only set brand-palette.py's gate actually enforces — a color intersecting this set fails. 'approved' is carried through for parity with Organization.BrandPalette but is never enforced as an allowlist (see the ticket's brand_palette.py note)."
+        }
+      }
+    },
+    "languagePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetRatio", "tolerance"],
+      "properties": {
+        "targetRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "tolerance": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "boundaryTerms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["forbiddenStrings"],
+      "properties": {
+        "forbiddenStrings": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additive institute-specific terms unioned on top of the trainer-boundary gate's mandatory TRAINER_MARKERS/TRAINER_PATTERNS baseline. An empty list here still runs the baseline — it never disables it."
+        }
+      }
+    },
+    "nblmPromptFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["durationMinutes", "targetAgeBand", "organizationName", "mascotCharacterName"],
+      "description": "Folded in from STEP 11 Batch 3's follow-up review (2026-09-05): the same immutable snapshot NblmPromptPreflightRepair.TryCorrectAsync and its reevaluator render/check against, replacing their prior live ISessionRepository/IProjectRepository/IOrganizationRepository reads.",
+      "properties": {
+        "durationMinutes": { "type": "integer", "minimum": 1 },
+        "targetAgeBand": { "type": "string" },
+        "organizationName": { "type": "string" },
+        "mascotCharacterName": {
+          "type": ["string", "null"],
+          "description": "Null means no mascot is configured for this organization — never fabricate a mascot clause."
+        }
+      }
+    }
+  }
+}

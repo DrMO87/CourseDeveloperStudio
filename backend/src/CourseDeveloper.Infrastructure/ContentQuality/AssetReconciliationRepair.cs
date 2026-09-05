@@ -251,7 +251,6 @@ public sealed class Batch2ContentQualityGateReevaluator : IContentQualityGateRee
     private readonly IOrganizationRepository _organizationRepository;
     private readonly IGateDefinitionRepository _gateDefinitionRepository;
     private readonly ISessionAssetRepository _sessionAssetRepository;
-    private readonly ISessionRepository _sessionRepository;
     private readonly IPdfTextExtractor _pdfTextExtractor;
     private readonly IPdfColorExtractor _pdfColorExtractor;
     private readonly IPedagogyCoverageEvaluator _pedagogyCoverageEvaluator;
@@ -266,7 +265,6 @@ public sealed class Batch2ContentQualityGateReevaluator : IContentQualityGateRee
         IOrganizationRepository organizationRepository,
         IGateDefinitionRepository gateDefinitionRepository,
         ISessionAssetRepository sessionAssetRepository,
-        ISessionRepository sessionRepository,
         IPdfTextExtractor pdfTextExtractor,
         IPdfColorExtractor pdfColorExtractor,
         IPedagogyCoverageEvaluator pedagogyCoverageEvaluator,
@@ -276,7 +274,6 @@ public sealed class Batch2ContentQualityGateReevaluator : IContentQualityGateRee
         _organizationRepository = organizationRepository;
         _gateDefinitionRepository = gateDefinitionRepository;
         _sessionAssetRepository = sessionAssetRepository;
-        _sessionRepository = sessionRepository;
         _pdfTextExtractor = pdfTextExtractor;
         _pdfColorExtractor = pdfColorExtractor;
         _pedagogyCoverageEvaluator = pedagogyCoverageEvaluator;
@@ -461,14 +458,15 @@ public sealed class Batch2ContentQualityGateReevaluator : IContentQualityGateRee
                     $"Job {job.Id}: enabled nblm-prompt-preflight gate cannot read missing prompt file '{promptPath}'.");
             }
 
-            var session = await _sessionRepository.GetByIdAsync(job.SessionId)
-                ?? throw new InvalidOperationException($"Job {job.Id}: session {job.SessionId} not found.");
+            // STEP 12: duration/audience/branding come from the job's immutable enqueue-time
+            // snapshot, not a live CourseSession read — see NblmPromptFields' doc comment.
+            var snapshot = OrganizationConfigSnapshotPayload.FromJobPayload(job);
             var forbidden = organization.BoundaryTerms.ForbiddenStrings;
             var result = await _nblmPromptPreflightEvaluator.EvaluateAsync(
                 promptPath,
-                NblmPromptFields.DurationText(session),
-                NblmPromptFields.AudienceText(project),
-                NblmPromptFields.BrandingText(organization),
+                NblmPromptFields.DurationText(snapshot),
+                NblmPromptFields.AudienceText(snapshot),
+                NblmPromptFields.BrandingText(snapshot),
                 forbidden,
                 ct);
             EnsurePythonResultVerified(result, "nblm-prompt-preflight");

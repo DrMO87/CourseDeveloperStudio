@@ -15,17 +15,22 @@ using CourseDeveloper.Core.Models;
 // internal) for that last, cross-assembly use.
 public static class NblmPromptFields
 {
-    public static string DurationText(CourseSession session) => $"{session.DurationMinutes} minutes";
+    // STEP 12: these three used to read CourseSession/CourseProject/Organization live via
+    // their repositories at correction/re-evaluation time — Codex's STEP 11 Batch 3 follow-up
+    // review flagged that a queued/retried job could then render different instructions after
+    // a mid-flight config change. They now read the job's immutable enqueue-time
+    // OrganizationConfigSnapshot instead (see OrganizationConfigSnapshotPayload).
+    public static string DurationText(OrganizationConfigSnapshot snapshot) => $"{snapshot.DurationMinutes} minutes";
 
-    public static string AudienceText(CourseProject project) => project.TargetAgeBand;
+    public static string AudienceText(OrganizationConfigSnapshot snapshot) => snapshot.TargetAgeBand;
 
-    // No mascot configured is an explicit organization choice (Organization.MascotConfig
-    // is required non-null but its CharacterName is nullable) — never fabricate a mascot
-    // clause for an org that opted out.
-    public static string BrandingText(Organization organization) =>
-        string.IsNullOrWhiteSpace(organization.MascotConfig.CharacterName)
+    // No mascot configured is an explicit organization choice (the snapshot's
+    // MascotCharacterName is nullable) — never fabricate a mascot clause for an org that
+    // opted out.
+    public static string BrandingText(OrganizationConfigSnapshot snapshot) =>
+        string.IsNullOrWhiteSpace(snapshot.MascotCharacterName)
             ? "No mascot is configured for this organization — do not include any mascot character."
-            : $"Reference the {organization.MascotConfig.CharacterName} mascot's approved poses on branded slides.";
+            : $"Reference the {snapshot.MascotCharacterName} mascot's approved poses on branded slides.";
 
     // The one immutable, shared file a course ships — read-only. Never write here (that
     // was the bug Codex's review caught: rendering in place destroyed the `$FIELD` markers
@@ -60,20 +65,10 @@ public static class NblmPromptFields
 // STEP-3-ported gates that have no targeted-patch lever today).
 public sealed class NblmPromptPreflightFactCorrector : IContentQualityFactCorrector
 {
-    private readonly ISessionRepository _sessionRepository;
-    private readonly IProjectRepository _projectRepository;
-    private readonly IOrganizationRepository _organizationRepository;
     private readonly INblmPromptRenderer _renderer;
 
-    public NblmPromptPreflightFactCorrector(
-        ISessionRepository sessionRepository,
-        IProjectRepository projectRepository,
-        IOrganizationRepository organizationRepository,
-        INblmPromptRenderer renderer)
+    public NblmPromptPreflightFactCorrector(INblmPromptRenderer renderer)
     {
-        _sessionRepository = sessionRepository;
-        _projectRepository = projectRepository;
-        _organizationRepository = organizationRepository;
         _renderer = renderer;
     }
 
@@ -89,14 +84,10 @@ public sealed class NblmPromptPreflightFactCorrector : IContentQualityFactCorrec
             return null;
         }
 
-        var session = await _sessionRepository.GetByIdAsync(job.SessionId)
-            ?? throw new InvalidOperationException($"Job {job.Id}: session {job.SessionId} not found.");
-        var project = await _projectRepository.GetByIdAsync(job.ProjectId)
-            ?? throw new InvalidOperationException($"Job {job.Id}: course project {job.ProjectId} not found.");
-        var organizationId = project.OrganizationId
-            ?? throw new InvalidOperationException($"Job {job.Id}: project {job.ProjectId} has no organization.");
-        var organization = await _organizationRepository.GetByIdAsync(organizationId)
-            ?? throw new InvalidOperationException($"Job {job.Id}: organization {organizationId} not found.");
+        // STEP 12: duration/audience/org-name/mascot come from the job's immutable
+        // enqueue-time snapshot, not a live CourseSession/CourseProject/Organization read —
+        // see OrganizationConfigSnapshotPayload and NblmPromptFields' doc comment.
+        var snapshot = OrganizationConfigSnapshotPayload.FromJobPayload(job);
 
         // Render with the exact same resolved phrases the reevaluator's preflight check later
         // searches for verbatim (NblmPromptFields is the single source of truth for both) — a
@@ -107,10 +98,10 @@ public sealed class NblmPromptPreflightFactCorrector : IContentQualityFactCorrec
         var result = await _renderer.RenderAsync(
             templatePath,
             renderedPath,
-            NblmPromptFields.DurationText(session),
-            NblmPromptFields.AudienceText(project),
-            organization.Name,
-            NblmPromptFields.BrandingText(organization),
+            NblmPromptFields.DurationText(snapshot),
+            NblmPromptFields.AudienceText(snapshot),
+            snapshot.OrganizationName,
+            NblmPromptFields.BrandingText(snapshot),
             ct);
 
         return new ContentQualityCorrectionResult(

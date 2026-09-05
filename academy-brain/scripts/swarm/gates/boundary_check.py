@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 
+from swarm import org_config
 from swarm.gates import FAIL, PASS, UNVERIFIED, GateResult, register
 
 TRAINER_MARKERS: tuple[str, ...] = (
@@ -57,13 +58,21 @@ TRAINER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 
 @register("trainer-boundary")
-def check(text: str) -> GateResult:
-    """Fail if any trainer-only marker appears in student-facing text."""
+def check(text: str, *, config: org_config.OrgConfig | None = None) -> GateResult:
+    """Fail if any trainer-only marker appears in student-facing text.
+
+    STEP 12: TRAINER_MARKERS/TRAINER_PATTERNS are a mandatory baseline that always runs —
+    an institute cannot silently erase academy-wide leakage detection. Any per-job
+    OrgConfig's ``boundary_terms.forbidden_strings`` are additive institute-specific terms
+    unioned on top of that baseline, never a replacement.
+    """
     if not text.strip():
         return GateResult("trainer-boundary", UNVERIFIED, "no content to scan", {})
 
+    cfg = config or org_config.TECHNO_SQUARE_DEFAULT
     lowered = text.lower()
-    matches = [m for m in TRAINER_MARKERS if m.lower() in lowered]
+    markers = TRAINER_MARKERS + cfg.boundary_terms.forbidden_strings
+    matches = [m for m in markers if m.lower() in lowered]
     matches += [name for name, pattern in TRAINER_PATTERNS if pattern.search(text)]
 
     if matches:

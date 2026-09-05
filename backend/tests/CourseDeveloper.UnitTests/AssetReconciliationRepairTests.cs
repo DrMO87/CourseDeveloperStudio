@@ -495,8 +495,11 @@ public class AssetReconciliationRepairTests : IDisposable
     }
 
     [Fact]
-    public async Task ReevaluateAsync_ThrowsHonestly_WhenBoundaryTermsAreNotConfigured()
+    public async Task ReevaluateAsync_RunsTheMandatoryBaselineCheck_WhenBoundaryTermsAreNotConfigured()
     {
+        // STEP 12 bug fix: an org with no BoundaryTerms.ForbiddenStrings override used to make
+        // BoundaryCheckGate report UNVERIFIED (and this reevaluator throw). The mandatory
+        // TRAINER_MARKERS baseline now always runs regardless, so clean text really passes.
         var sessionId = Guid.NewGuid();
         WritePdfPlaceholder("L1-unconfigured-boundary", "deck-a");
         var job = NewJob(sessionId, "L1-unconfigured-boundary");
@@ -508,8 +511,29 @@ public class AssetReconciliationRepairTests : IDisposable
             new FakeSessionAssetRepository(sessionId, new List<SessionAsset>()),
             new FakePdfTextExtractor("student-facing text"));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => reevaluator.ReevaluateAsync(job, "lineage-1", 1, "deck-a", CancellationToken.None));
+        var violations = await reevaluator.ReevaluateAsync(job, "lineage-1", 1, "deck-a", CancellationToken.None);
+
+        Assert.Empty(violations);
+    }
+
+    [Fact]
+    public async Task ReevaluateAsync_ReportsAViolation_WhenTheMandatoryBaselineDetectsLeakage_EvenWithNoOrgTermsConfigured()
+    {
+        var sessionId = Guid.NewGuid();
+        WritePdfPlaceholder("L1-baseline-leak", "deck-a");
+        var job = NewJob(sessionId, "L1-baseline-leak");
+        var orgId = Guid.NewGuid();
+        var reevaluator = NewReevaluator(
+            new FakeProjectRepository(job.ProjectId, orgId),
+            new FakeOrganizationRepository(new Organization { Id = orgId }),
+            new FakeGateDefinitionRepository(orgId, new[] { ("boundary_check", true, "blocking") }),
+            new FakeSessionAssetRepository(sessionId, new List<SessionAsset>()),
+            new FakePdfTextExtractor("Trainer note: 5 minutes for this activity."));
+
+        var violations = await reevaluator.ReevaluateAsync(job, "lineage-1", 1, "deck-a", CancellationToken.None);
+
+        var violation = Assert.Single(violations);
+        Assert.Equal("boundary_check", violation.GateCode);
     }
 
     [Fact]
@@ -794,13 +818,13 @@ public class AssetReconciliationRepairTests : IDisposable
         var promptDir = Path.Combine(_vaultRoot, "80-generation");
         Directory.CreateDirectory(promptDir);
         File.WriteAllText(Path.Combine(promptDir, "nblm-student-deck-prompts.md"), "## Notebook A\n\n```\nstale prose\n```\n");
-        var session = new CourseSession { Id = sessionId, DurationMinutes = 45 };
+        job.Payload["orgConfigSnapshot"] = OrganizationConfigSnapshotPayload.ToPayloadValue(
+            new OrganizationConfigSnapshot { OrganizationId = orgId, DurationMinutes = 45, TargetAgeBand = "ages 9-12", OrganizationName = "Test Org" });
         var reevaluator = NewReevaluator(
             new FakeProjectRepository(job.ProjectId, orgId),
             new FakeOrganizationRepository(new Organization { Id = orgId }),
             new FakeGateDefinitionRepository(orgId, new[] { ("nblm-prompt-preflight", true, "blocking") }),
             new FakeSessionAssetRepository(sessionId, new List<SessionAsset>()),
-            sessionRepository: new FakeSessionRepository(session),
             nblmPromptPreflightEvaluator: new FakeNblmPromptPreflightEvaluator(
                 new PythonGateResult("nblm-prompt-preflight", "FAIL", "no deck-a section found", new Dictionary<string, object>())));
 
@@ -853,13 +877,11 @@ public class AssetReconciliationRepairTests : IDisposable
         ISessionAssetRepository sessionAssetRepository,
         IPdfTextExtractor? pdfTextExtractor = null,
         IPdfColorExtractor? pdfColorExtractor = null,
-        ISessionRepository? sessionRepository = null,
         IPedagogyCoverageEvaluator? pedagogyCoverageEvaluator = null,
         INblmPromptPreflightEvaluator? nblmPromptPreflightEvaluator = null) =>
         new(projectRepository, organizationRepository, gateDefinitionRepository, sessionAssetRepository,
             // All default to fakes that throw if actually invoked — tests that don't enable the
             // corresponding gate must never reach that evidence source at all.
-            sessionRepository ?? new FakeSessionRepository(),
             pdfTextExtractor ?? new FakePdfTextExtractor(),
             pdfColorExtractor ?? new FakePdfColorExtractor(),
             pedagogyCoverageEvaluator ?? new FakePedagogyCoverageEvaluator(),
@@ -960,28 +982,6 @@ public class AssetReconciliationRepairTests : IDisposable
             return _colors is null
                 ? throw new NotSupportedException("This test must never reach real PDF color extraction.")
                 : Task.FromResult(_colors);
-        }
-    }
-
-    private sealed class FakeSessionRepository : ISessionRepository
-    {
-        private readonly CourseSession? _session;
-
-        public FakeSessionRepository() { }
-        public FakeSessionRepository(CourseSession session) { _session = session; }
-
-        public Task<List<CourseSession>> GetByProjectAsync(Guid projectId) => throw new NotSupportedException();
-        public Task<CourseSession> CreateAsync(CourseSession session) => throw new NotSupportedException();
-        public Task<CourseSession> UpdateAsync(CourseSession session) => throw new NotSupportedException();
-        public Task DeleteAsync(Guid id) => throw new NotSupportedException();
-
-        public Task<CourseSession?> GetByIdAsync(Guid id)
-        {
-            if (_session is null || _session.Id != id)
-            {
-                throw new NotSupportedException("This test must never reach real session lookup.");
-            }
-            return Task.FromResult<CourseSession?>(_session);
         }
     }
 
