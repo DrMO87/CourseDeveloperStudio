@@ -44,9 +44,34 @@ builder.Services.AddSingleton<IQualityGate, BrandPaletteGate>();
 builder.Services.AddSingleton<IQualityGate, AssetReconciliationGate>();
 
 // Supabase PostgreSQL via Npgsql
+// ---------------------------------------------------------------------------
+// Environment variable reference (see backend/.env.example for full fallback details):
+//   API:
+//     SUPABASE_CONNECTION_STRING — required for database access; should use studio_api
+//     SUPABASE_URL               — required for valid Supabase JWT authority metadata
+//     CORS_ALLOWED_ORIGINS       — optional comma-separated origin allow-list
+//     ENABLE_SWAGGER             — optional; false disables Swagger outside Development
+//     ENABLE_HTTPS_REDIRECTION   — optional; true enables HTTPS redirection
+//   Worker (CourseDeveloper.Worker):
+//     GENERATION_WORKER_CONNECTION_STRING — full Npgsql string as generation_worker role (required, no fallback)
+//     ACADEMY_BRAIN_SCRIPT_PATH            — required main generation script path; no fallback
+//     ACADEMY_BRAIN_PEDAGOGY_SCRIPT_PATH  — required pedagogy evaluator path; no fallback
+//     ACADEMY_BRAIN_PDF_TEXT_SCRIPT_PATH  — required PDF text extractor path; no fallback
+//     ACADEMY_BRAIN_PDF_COLOR_SCRIPT_PATH — required PDF color extractor path; no fallback
+//     ACADEMY_BRAIN_NBLM_RENDER_SCRIPT_PATH — required prompt renderer path; no fallback
+//     ACADEMY_BRAIN_NBLM_PREFLIGHT_SCRIPT_PATH — required prompt evaluator path; no fallback
+//     GENERATION_WORKER_PYTHON_EXECUTABLE — optional; defaults to python
+//     GENERATION_WORKER_POLL_INTERVAL_SECONDS / GENERATION_WORKER_LEASE_SECONDS — optional; default to 2 / 30
+//     SUPABASE_PROJECT_URL + SUPABASE_SERVICE_ROLE_KEY — optional pair; both are needed for Storage uploads
+//     GENERATION_ARTIFACT_BUCKET          — optional; defaults to course-artifacts
+//     STUDIO_COMMIT_SHA                   — optional; defaults to unknown
+//     GENERATION_WORKER_STUB_DURATION_SECONDS — optional; only used by the unregistered stub executor
+//   Shared:
+//     VAULT_ROOT — optional; falls back to Obsidian:VaultPath, then an application-relative vault
+// ---------------------------------------------------------------------------
 var supabaseConnectionString = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING") 
     ?? builder.Configuration.GetConnectionString("SupabaseDb")
-    ?? "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres;";
+    ?? "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=PLACEHOLDER-SET-SUPABASE_CONNECTION_STRING;";
 
 builder.Services.AddSingleton(_ =>
 {
@@ -90,7 +115,7 @@ builder.Services.AddCors(options =>
 // frontend and MVP already authenticate against (one identity boundary, decision 6).
 var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL")
     ?? builder.Configuration["Supabase:ProjectUrl"]
-    ?? "https://gjxhfyfonjdcaimxjipp.supabase.co";
+    ?? "https://PLACEHOLDER-SET-SUPABASE_URL.supabase.co";
 var supabaseIssuer = $"{supabaseUrl.TrimEnd('/')}/auth/v1";
 
 builder.Services
