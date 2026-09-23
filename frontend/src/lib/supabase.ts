@@ -12,7 +12,6 @@ import type {
   DossierFileCategory,
   InstitutionType
 } from './types';
-import { api } from './apiClient';
 export { supabase } from './supabaseClient';
 import { supabase } from './supabaseClient';
 
@@ -264,11 +263,6 @@ function setLocal<T>(key: string, val: T, triggerEvent: boolean = false): void {
 
 export async function fetchOrganizations(): Promise<Organization[]> {
   try {
-    const data = await api.get<Organization[]>('/api/Organizations');
-    if (Array.isArray(data) && data.length > 0) return data;
-  } catch {}
-
-  try {
     const { data, error } = await supabase
       .from('organizations')
       .select('*')
@@ -291,10 +285,6 @@ export async function fetchOrganizations(): Promise<Organization[]> {
 }
 
 export async function fetchOrganizationById(id: string): Promise<Organization | null> {
-  try {
-    return await api.get<Organization>(`/api/Organizations/${id}`);
-  } catch {}
-
   try {
     const { data, error } = await supabase
       .from('organizations')
@@ -326,10 +316,6 @@ export async function createOrganization(org: Partial<Organization>): Promise<Or
   };
 
   try {
-    return await api.post<Organization>('/api/Organizations', payload);
-  } catch {}
-
-  try {
     await supabase.from('organizations').insert([payload]);
   } catch (err) {
     console.warn('Supabase insert organization fallback:', err);
@@ -341,12 +327,6 @@ export async function createOrganization(org: Partial<Organization>): Promise<Or
 }
 
 export async function updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization> {
-  try {
-    const existing = await api.get<Organization>(`/api/Organizations/${id}`);
-    const merged: Organization = { ...existing, ...updates, id: existing.id };
-    return await api.put<Organization>(`/api/Organizations/${id}`, merged);
-  } catch {}
-
   const existing = await fetchOrganizationById(id);
   const merged: Organization = { ...(existing || {}), ...updates, id } as Organization;
 
@@ -361,11 +341,6 @@ export async function updateOrganization(id: string, updates: Partial<Organizati
 
 export async function deleteOrganization(id: string): Promise<void> {
   try {
-    await api.delete(`/api/Organizations/${id}`);
-    return;
-  } catch {}
-
-  try {
     await supabase.from('organizations').delete().eq('id', id);
   } catch {}
 
@@ -376,10 +351,6 @@ export async function deleteOrganization(id: string): Promise<void> {
 // ── Quality Gate Definitions ──
 
 export async function fetchGateDefinitions(organizationId: string): Promise<QualityGateDefinition[]> {
-  try {
-    return await api.get<QualityGateDefinition[]>(`/api/Organizations/${organizationId}/gate-definitions`);
-  } catch {}
-
   try {
     const { data, error } = await supabase
       .from('quality_gate_definitions')
@@ -394,10 +365,6 @@ export async function fetchGateDefinitions(organizationId: string): Promise<Qual
 export async function upsertGateDefinition(def: Partial<QualityGateDefinition>): Promise<QualityGateDefinition> {
   if (!def.organization_id) throw new Error('upsertGateDefinition requires organization_id.');
   try {
-    return await api.post<QualityGateDefinition>(`/api/Organizations/${def.organization_id}/gate-definitions`, def);
-  } catch {}
-
-  try {
     await supabase.from('quality_gate_definitions').upsert([def]);
   } catch {}
 
@@ -409,11 +376,6 @@ export async function upsertGateDefinition(def: Partial<QualityGateDefinition>):
 
 export async function toggleGateDefinition(organizationId: string, gateCode: string, isEnabled: boolean): Promise<void> {
   try {
-    await api.patch(`/api/Organizations/${organizationId}/gate-definitions/${gateCode}/toggle?isEnabled=${isEnabled}`);
-    return;
-  } catch {}
-
-  try {
     await supabase
       .from('quality_gate_definitions')
       .update({ is_enabled: isEnabled })
@@ -424,27 +386,55 @@ export async function toggleGateDefinition(organizationId: string, gateCode: str
 
 // ── Course Projects & Sessions ──
 
-export async function fetchProjects(organizationId?: string): Promise<CourseProject[]> {
-  const query = organizationId ? `?organizationId=${organizationId}` : '';
-  try {
-    const data = await api.get<CourseProject[]>(`/api/Projects${query}`);
-    if (Array.isArray(data) && data.length > 0) return data;
-  } catch {}
+export function getDeletedProjectIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  const list = getLocal<string[]>('cds_deleted_project_ids', []);
+  return new Set(Array.isArray(list) ? list : []);
+}
 
+export function recordDeletedProjectId(id: string): void {
+  if (typeof window === 'undefined') return;
+  const set = getDeletedProjectIds();
+  set.add(id);
+  setLocal('cds_deleted_project_ids', Array.from(set));
+}
+
+export async function fetchProjects(organizationId?: string): Promise<CourseProject[]> {
+  const deletedIds = getDeletedProjectIds();
+
+  // 1. Try Supabase
   try {
     let q = supabase.from('course_projects').select('*');
     if (organizationId) q = q.eq('organization_id', organizationId);
     const { data, error } = await q.order('created_at', { ascending: false });
-    if (!error && Array.isArray(data) && data.length > 0) return data;
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const valid = data.filter(p => p && !deletedIds.has(p.id) && p.id !== 'proj-1' && p.course_code !== 'PHAR-301');
+      if (valid.length > 0) return valid;
+    }
   } catch {}
 
+  // 2. Check LocalStorage
+  // If the user has ever saved projects OR explicitly deleted courses to an empty array [],
+  // respect that user state and NEVER resurrect default templates!
+  const hasLocalKey = typeof window !== 'undefined' && localStorage.getItem('cds_projects') !== null;
+  if (hasLocalKey) {
+    const local = getLocal<CourseProject[]>('cds_projects', []);
+    const safeLocal = Array.isArray(local) ? local : [];
+    const valid = safeLocal.filter(p => p && !deletedIds.has(p.id) && p.id !== 'proj-1' && p.course_code !== 'PHAR-301');
+    if (valid.length !== safeLocal.length) {
+      setLocal('cds_projects', valid);
+    }
+    return organizationId ? valid.filter(p => p.organization_id === organizationId) : valid;
+  }
+
+  // 3. Fallback / Pristine First-Run Template (Only if never initialized and never deleted)
   const defaultProjects: CourseProject[] = [
     {
-      id: 'proj-1',
+      id: 'proj-pc206',
       organization_id: 'org-template-hue',
       name: 'Instrumental Analysis (Pharmaceutical)',
       slug: 'instrumental-analysis-pharmaceutical',
-      course_code: 'PHAR-301',
+      course_code: 'PC 206',
       credit_hours: 3,
       prerequisites: 'Organic Chemistry II, Analytical Chemistry',
       academic_term: 'Semester 5 (Undergraduate)',
@@ -453,19 +443,15 @@ export async function fetchProjects(organizationId?: string): Promise<CourseProj
       obsidian_vault_project_path: '01_Projects/instrumental-analysis-pharmaceutical',
       created_at: '2026-01-01T00:00:00.000Z'
     }
-  ];
+  ].filter(p => !deletedIds.has(p.id) && !deletedIds.has('proj-1') && !deletedIds.has('proj-pc206'));
 
-  const local = getLocal<CourseProject[] | null>('cds_projects', null);
-  if (local !== null && Array.isArray(local) && local.length > 0) {
-    return organizationId ? local.filter(p => p.organization_id === organizationId) : local;
-  }
+  // Save to localStorage so future deletes will result in [] staying empty and not reviving!
+  setLocal('cds_projects', defaultProjects);
   return organizationId ? defaultProjects.filter(p => p.organization_id === organizationId) : defaultProjects;
 }
 
 export async function fetchProjectById(id: string): Promise<CourseProject | null> {
-  try {
-    return await api.get<CourseProject>(`/api/Projects/${id}`);
-  } catch {}
+  if (getDeletedProjectIds().has(id) || id === 'proj-1') return null;
 
   try {
     const { data, error } = await supabase
@@ -473,7 +459,7 @@ export async function fetchProjectById(id: string): Promise<CourseProject | null
       .select('*')
       .eq('id', id)
       .single();
-    if (!error && data) return data;
+    if (!error && data && !getDeletedProjectIds().has(data.id) && data.id !== 'proj-1') return data;
   } catch {}
 
   const all = await fetchProjects();
@@ -498,27 +484,17 @@ export async function createProject(project: Partial<CourseProject>): Promise<Co
   };
 
   try {
-    return await api.post<CourseProject>('/api/Projects', payload);
-  } catch {}
-
-  try {
     await supabase.from('course_projects').insert([payload]);
   } catch (err) {
     console.warn('Supabase insert project fallback:', err);
   }
 
   const local = getLocal<CourseProject[]>('cds_projects', []);
-  setLocal('cds_projects', [payload, ...local.filter(p => p.id !== payload.id)]);
+  setLocal('cds_projects', [payload, ...local.filter(p => p.id !== payload.id)], true);
   return payload;
 }
 
 export async function updateProject(id: string, updates: Partial<CourseProject>): Promise<CourseProject> {
-  try {
-    const existing = await api.get<CourseProject>(`/api/Projects/${id}`);
-    const merged: CourseProject = { ...existing, ...updates, id: existing.id };
-    return await api.put<CourseProject>(`/api/Projects/${id}`, merged);
-  } catch {}
-
   const existing = await fetchProjectById(id);
   const merged: CourseProject = { ...(existing || {}), ...updates, id } as CourseProject;
 
@@ -527,22 +503,38 @@ export async function updateProject(id: string, updates: Partial<CourseProject>)
   } catch {}
 
   const local = getLocal<CourseProject[]>('cds_projects', []);
-  setLocal('cds_projects', local.map(p => p.id === id ? merged : p));
+  setLocal('cds_projects', local.map(p => p.id === id ? merged : p), true);
   return merged;
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  try {
-    await api.delete(`/api/Projects/${id}`);
-    return;
-  } catch {}
+  // 1. Permanently record in persistent deleted tombstone list
+  recordDeletedProjectId(id);
 
+  // 2. Remove from LocalStorage projects list immediately
+  const local = getLocal<CourseProject[]>('cds_projects', []);
+  const updated = local.filter(p => p && p.id !== id);
+  setLocal('cds_projects', updated, true);
+
+  // 3. Remove project-scoped local storage keys
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(`cds_sessions_${id}`);
+      localStorage.removeItem(`cds_dossier_${id}`);
+      localStorage.removeItem(`cds_receipts_${id}`);
+    } catch {}
+  }
+
+  // 4. Clean up Supabase
+  try {
+    await supabase.from('course_sessions').delete().eq('project_id', id);
+  } catch {}
+  try {
+    await supabase.from('project_dossier_files').delete().eq('project_id', id);
+  } catch {}
   try {
     await supabase.from('course_projects').delete().eq('id', id);
   } catch {}
-
-  const local = getLocal<CourseProject[]>('cds_projects', []);
-  setLocal('cds_projects', local.filter(p => p.id !== id));
 }
 
 const STAGE_ORDER: PipelineStage[] = ['BRAND_SETUP', 'RECEIPT', 'DIGEST', 'BUNDLE', 'ARTIFACTS'];
@@ -560,13 +552,6 @@ function deriveCompletedStages(session: CourseSession): CourseSession {
 }
 
 export async function fetchSessions(projectId: string): Promise<CourseSession[]> {
-  try {
-    const sessions = await api.get<CourseSession[]>(`/api/Projects/${projectId}/sessions`);
-    if (Array.isArray(sessions) && sessions.length > 0) {
-      return sessions.map(deriveCompletedStages);
-    }
-  } catch {}
-
   try {
     const { data, error } = await supabase
       .from('course_sessions')
@@ -1081,11 +1066,6 @@ export async function createSession(session: Partial<CourseSession>): Promise<Co
     approval_note: session.approval_note ?? null,
   };
 
-  try {
-    const created = await api.post<CourseSession>(`/api/Projects/${session.project_id}/sessions`, payload);
-    if (created && created.id) return deriveCompletedStages(created);
-  } catch {}
-
   const newSess: CourseSession = {
     id: session.id || `sess-${Date.now()}`,
     project_id: session.project_id,
@@ -1106,12 +1086,6 @@ export async function createSession(session: Partial<CourseSession>): Promise<Co
 }
 
 export async function updateSessionStage(sessionId: string, stage: PipelineStage): Promise<CourseSession> {
-  try {
-    const existing = await api.get<CourseSession>(`/api/Sessions/${sessionId}`);
-    const updated = await api.put<CourseSession>(`/api/Sessions/${sessionId}`, { ...existing, current_stage: stage });
-    if (updated) return deriveCompletedStages(updated);
-  } catch {}
-
   try {
     await supabase
       .from('course_sessions')
@@ -1138,12 +1112,6 @@ export async function updateSessionStage(sessionId: string, stage: PipelineStage
 
 export async function updateSessionCompletedStages(sessionId: string, currentStage: PipelineStage, status: string = 'draft'): Promise<CourseSession> {
   try {
-    const existing = await api.get<CourseSession>(`/api/Sessions/${sessionId}`);
-    const updated = await api.put<CourseSession>(`/api/Sessions/${sessionId}`, { ...existing, current_stage: currentStage, status });
-    if (updated) return deriveCompletedStages(updated);
-  } catch {}
-
-  try {
     await supabase
       .from('course_sessions')
       .update({ current_stage: currentStage, status, updated_at: new Date().toISOString() })
@@ -1169,13 +1137,6 @@ export async function updateSessionCompletedStages(sessionId: string, currentSta
 
 export async function updateSession(id: string, updates: Partial<CourseSession>): Promise<CourseSession> {
   try {
-    const existing = await api.get<CourseSession>(`/api/Sessions/${id}`);
-    const merged = { ...existing, ...updates, id: existing.id };
-    const updated = await api.put<CourseSession>(`/api/Sessions/${id}`, merged);
-    if (updated) return deriveCompletedStages(updated);
-  } catch {}
-
-  try {
     await supabase.from('course_sessions').update(updates).eq('id', id);
   } catch {}
 
@@ -1194,11 +1155,6 @@ export async function updateSession(id: string, updates: Partial<CourseSession>)
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  try {
-    await api.delete(`/api/Sessions/${id}`);
-    return;
-  } catch {}
-
   try {
     await supabase.from('course_sessions').delete().eq('id', id);
   } catch {}
@@ -1223,7 +1179,7 @@ const DEFAULT_SAMPLE_DOSSIER: ProjectDossierFile[] = [
     },
     file_content_text: JSON.stringify({
       course_title: 'Instrumental Analysis (Pharmaceutical)',
-      course_code: 'PHAR-301',
+      course_code: 'PC 206',
       credit_hours: 3,
       total_marks: 100,
       target_question_count: 25,
@@ -1273,7 +1229,7 @@ const DEFAULT_SAMPLE_DOSSIER: ProjectDossierFile[] = [
     file_content_text: `HORUS UNIVERSITY — EGYPT (HUE)
 FACULTY OF PHARMACY
 DEPARTMENT OF PHARMACEUTICAL ANALYTICAL CHEMISTRY
-COURSE SPECIFICATION: INSTRUMENTAL ANALYSIS (PHAR-301)
+COURSE SPECIFICATION: INSTRUMENTAL ANALYSIS (PC 206)
 
 Topic (Theoretical & Practical) | Lecturer | Lecture hours
 - Spectrophotometry and EMR | Dr. Mahmoud Elkhoudary | 1
@@ -1499,11 +1455,6 @@ export async function insertAgentLog(log: Partial<AgentLog>): Promise<AgentLog |
 
 export async function fetchQualityReceipts(sessionId: string): Promise<QualityReceipt[]> {
   try {
-    const data = await api.get<QualityReceipt[]>(`/api/QualityGates/session/${sessionId}`);
-    if (Array.isArray(data) && data.length > 0) return data;
-  } catch {}
-
-  try {
     const { data: receipts, error: receiptError } = await supabase
       .from('quality_receipts')
       .select('*')
@@ -1526,18 +1477,6 @@ export async function runQualityGates(request: {
   learner_text: string;
   mapped_assets?: unknown[];
 }): Promise<QualityGateResult[]> {
-  try {
-    const results = await api.post<QualityGateResult[]>('/api/QualityGates/evaluate', {
-      organization_id: request.organization_id,
-      project_id: request.project_id,
-      session_id: request.session_id,
-      stage: request.stage,
-      learner_text: request.learner_text,
-      mapped_assets: request.mapped_assets || [],
-    });
-    if (Array.isArray(results) && results.length > 0) return results;
-  } catch {}
-
   // Deterministic local verification fallback
   const results: QualityGateResult[] = [
     { gate_code: 'language_ratio', verdict: 'PASS', metric_value: 1.0, detail: 'Language Policy Verification - Deterministic PASS' },

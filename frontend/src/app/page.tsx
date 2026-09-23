@@ -564,7 +564,7 @@ function DashboardContent() {
         const dossierGroundTruth = (dossierFiles && dossierFiles.length > 0)
           ? `\n\nOFFICIAL GROUND-TRUTH COURSE DOSSIER (Uploaded Specs, Reference Books, Decks, Question Banks):\n` +
             dossierFiles.map(df => `- [${df.category}] ${df.file_name}: ${df.file_content_text ? df.file_content_text.substring(0, 300).replace(/\n+/g, ' ') : df.summary || ''}`).join('\n')
-          : `\n\nOFFICIAL GROUND-TRUTH: Faculty of Pharmacy Course Specification for ${selectedProject?.name || 'Instrumental Analysis'} (${selectedProject?.course_code || 'PHAR-301'}).`;
+          : `\n\nOFFICIAL GROUND-TRUTH: Faculty of Pharmacy Course Specification for ${selectedProject?.name || 'Instrumental Analysis'} (${selectedProject?.course_code || 'PC 206'}).`;
 
         const prompt1 = `You are ${role1}, an AI curriculum engineer for ${selectedOrg?.name || 'Institution'}. We are executing Stage ${stage} for session "${selectedSession?.session_code}: ${selectedSession?.title}". Brand palette is [${orgPalette}]. ${langConstraint}.${dossierGroundTruth}\n\nSTRICT REQUIREMENT: Base all findings, ILOs, mathematical formulas, and quality metrics directly and exclusively on the uploaded course dossier above. Do NOT invent made-up codes or generic placeholders. Provide your concise, expert synthesis notes.`;
         

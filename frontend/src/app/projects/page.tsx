@@ -133,10 +133,12 @@ function ProjectsContent() {
   const handleDeleteProject = async (id: string, name: string) => {
     if (!confirm(`Delete project "${name}"? This cannot be undone.`)) return;
     try {
+      setProjects(prev => prev.filter(p => p.id !== id));
       await deleteProject(id);
       await loadData();
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to delete course.');
+      await loadData();
     }
   };
 
@@ -462,7 +464,7 @@ function ProjectsContent() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. PHAR-301"
+                      placeholder="e.g. PC 206"
                       value={courseCode}
                       onChange={(e) => setCourseCode(e.target.value)}
                       className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/15 rounded-xl px-3.5 py-2 text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
@@ -638,7 +640,7 @@ function ProjectsContent() {
                   <label className="block text-xs font-display font-bold text-slate-600 dark:text-white/60 mb-1.5">Course Code</label>
                   <input
                     value={editCourseCode}
-                    placeholder="e.g. PHAR-301"
+                    placeholder="e.g. PC 206"
                     onChange={(e) => setEditCourseCode(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                   />

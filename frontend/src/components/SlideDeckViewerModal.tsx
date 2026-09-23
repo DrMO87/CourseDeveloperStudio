@@ -605,7 +605,7 @@ export function SlideDeckViewerModal({ isOpen, onClose, org, project, session, d
       const dossierContext = (dossierFiles && dossierFiles.length > 0)
         ? `\n\nOFFICIAL GROUND-TRUTH COURSE DOSSIER (Uploaded Specs, Reference Books, Decks, Question Banks):\n` +
           dossierFiles.map(df => `### [${df.category}] ${df.file_name}\n${df.file_content_text ? df.file_content_text.substring(0, 15000) : df.summary || ''}`).join('\n\n')
-        : `\n\nOFFICIAL GROUND TRUTH: Faculty of Pharmacy Course Specification & Pharmacopoeial Standard for ${courseTitle} (${project?.course_code || 'PHAR-301'}).`;
+        : `\n\nOFFICIAL GROUND TRUTH: Faculty of Pharmacy Course Specification & Pharmacopoeial Standard for ${courseTitle} (${project?.course_code || 'PC 206'}).`;
 
       const languageDirective = languageMode === 'EN'
         ? 'Generate all slide titles, concepts, formulas, and delivery notes strictly in 100% English without any Arabic.'
@@ -620,7 +620,7 @@ export function SlideDeckViewerModal({ isOpen, onClose, org, project, session, d
           messages: [
             {
               role: 'system',
-              content: `You are an elite academic curriculum designer for ${orgName}. You MUST strictly ground your curriculum generation on the uploaded Course Dossier (Official Course Specification, Faculty Lecture Decks, Accredited Reference Textbook, and Question Bank). Do NOT invent or make up fictional topics or generic placeholders. Every formula, concept, standard operating procedure (SOP), and Bloom taxonomy milestone must directly mirror the uploaded faculty course material.\n${dossierContext}\n\nGenerate a structured 16-slide lecture deck in JSON format for the course "${courseTitle}" (${project?.course_code || 'PHAR-301'}) and session "${sessionCode} - ${sessionTitle}". ${languageDirective} Return ONLY a valid JSON array of 16 slide objects matching the schema: [{"slideNumber":1,"titleEn":"","titleAr":"","bloomLevel":"Remember"|"Understand"|"Apply"|"Analyze"|"Evaluate","bloomLevelAr":"","durationMinutes":5,"keyConcepts":["","",""],"lecturerNotes":"","studentTakeaway":"","visualCue":""}].`
+              content: `You are an elite academic curriculum designer for ${orgName}. You MUST strictly ground your curriculum generation on the uploaded Course Dossier (Official Course Specification, Faculty Lecture Decks, Accredited Reference Textbook, and Question Bank). Do NOT invent or make up fictional topics or generic placeholders. Every formula, concept, standard operating procedure (SOP), and Bloom taxonomy milestone must directly mirror the uploaded faculty course material.\n${dossierContext}\n\nGenerate a structured 16-slide lecture deck in JSON format for the course "${courseTitle}" (${project?.course_code || 'PC 206'}) and session "${sessionCode} - ${sessionTitle}". ${languageDirective} Return ONLY a valid JSON array of 16 slide objects matching the schema: [{"slideNumber":1,"titleEn":"","titleAr":"","bloomLevel":"Remember"|"Understand"|"Apply"|"Analyze"|"Evaluate","bloomLevelAr":"","durationMinutes":5,"keyConcepts":["","",""],"lecturerNotes":"","studentTakeaway":"","visualCue":""}].`
             },
             {
               role: 'user',
