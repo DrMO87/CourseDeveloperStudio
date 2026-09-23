@@ -90,8 +90,8 @@ export async function POST(req: NextRequest) {
     for (const candidateBase of endpointsToTry) {
       const targetUrl = `${candidateBase}/chat/completions`;
       const controller = new AbortController();
-      // Allow up to 5 minutes (300,000ms) for local models, 60s for cloud
-      const timeoutMs = base.startsWith('http://localhost') ? 300000 : 60000;
+      // Allow up to 45s for local models, 60s for cloud
+      const timeoutMs = base.startsWith('http://localhost') ? 45000 : 60000;
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
@@ -117,9 +117,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (!response) {
+      const isTimeout = lastError.toLowerCase().includes('aborted') || lastError.toLowerCase().includes('timeout');
+      const isLocalHost = base.includes('localhost') || base.includes('127.0.0.1');
+      const errorMsg = isLocalHost
+        ? isTimeout
+          ? 'Local LM Studio timed out (45s). Ensure a model is loaded in LM Studio and has enough GPU VRAM, or switch to a Cloud model (Groq, Gemini, DeepSeek).'
+          : `Could not connect to LM Studio at ${base}. Please ensure LM Studio local server is started on port 1234 with a model loaded, or switch to a Cloud model.`
+        : `Could not connect to LLM at ${base}. Error: ${lastError}`;
+
       return NextResponse.json({
         success: false,
-        error: `Could not connect to LLM at ${base}. Error: ${lastError}`
+        error: errorMsg
       }, { status: 502 });
     }
 

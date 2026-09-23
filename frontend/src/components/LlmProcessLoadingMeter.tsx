@@ -31,6 +31,19 @@ export function getModelSpeedProfile(modelName?: string, provider?: string): Mod
   const m = (modelName || '').toLowerCase();
   const p = (provider || '').toLowerCase();
 
+  if (p.includes('engine') || m.includes('ingestion') || m.includes('extract') || p.includes('parser') || p.includes('dossier')) {
+    return {
+      providerName: 'Dossier Ingestion Engine',
+      speedRating: 'FAST',
+      tokensPerSecEstimate: 'Binary & Office Syntax Parser',
+      expectedDurationSec: 4.5,
+      badgeColor: 'text-amber-500 dark:text-gold-400',
+      badgeBg: 'bg-amber-500/10',
+      badgeBorder: 'border-amber-500/30',
+      description: 'Native document syntax parser & Obsidian vault asset pipeline.'
+    };
+  }
+
   if (p.includes('groq') || m.includes('groq')) {
     return {
       providerName: 'Groq LPU Engine',
@@ -70,7 +83,7 @@ export function getModelSpeedProfile(modelName?: string, provider?: string): Mod
     };
   }
 
-  if (p.includes('anthropic') || m.includes('claude') || p.includes('openai') || m.includes('gpt') || m.includes('o3')) {
+  if (p.includes('anthropic') || m.includes('claude') || p.includes('openai') || m.includes('gpt') || m.includes('o3') || p.includes('deepseek') || m.includes('deepseek')) {
     return {
       providerName: 'Frontier Cloud Reasoning',
       speedRating: 'BALANCED',
@@ -136,17 +149,22 @@ export function LlmProcessLoadingMeter({
   const [elapsed, setElapsed] = useState(0);
   const [activeModel, setActiveModel] = useState(modelName || '');
 
-  // Detect active model from localStorage if not explicitly passed
+  // Detect active model from context or localStorage if not explicitly passed
   useEffect(() => {
-    if (!modelName && typeof window !== 'undefined') {
+    if (!modelName && (activeAgent === 'CONTEXT_INGESTOR' || processTitle?.toLowerCase().includes('ingest'))) {
+      setActiveModel('Dossier Ingestion Engine');
+    } else if (!modelName && typeof window !== 'undefined') {
       const savedModel = localStorage.getItem('cds_verified_model');
       if (savedModel) setActiveModel(savedModel);
     } else if (modelName) {
       setActiveModel(modelName);
     }
-  }, [modelName]);
+  }, [modelName, activeAgent, processTitle]);
 
-  const profile = getModelSpeedProfile(activeModel, provider);
+  const effectiveProvider = (activeAgent === 'CONTEXT_INGESTOR' || processTitle?.toLowerCase().includes('ingest')) 
+    ? (provider || 'engine') 
+    : provider;
+  const profile = getModelSpeedProfile(activeModel, effectiveProvider);
   const targetDuration = customExpectedSeconds || profile.expectedDurationSec;
 
   // High-precision elapsed ticker

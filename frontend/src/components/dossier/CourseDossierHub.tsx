@@ -339,6 +339,7 @@ export function CourseDossierHub({ project, organization }: Props) {
     ]);
     setDropToast(`⏳ Ingesting ${filesArray.length} file(s) into Course Dossier...`);
     const addedFiles: ProjectDossierFile[] = [];
+    let triggeredAiSyllabus = false;
 
     try {
       for (let i = 0; i < filesArray.length; i++) {
@@ -356,12 +357,15 @@ export function CourseDossierHub({ project, organization }: Props) {
             contentText = `File content: ${file.name} (${file.size} bytes)`;
           }
         } else {
-          // Route all binaries (PDF, Word, PPTX, Images, CDX, etc.) through /api/extract to save into vault assets
+          // Route all binaries (PDF, Word, PPTX, Images, CDX, etc.) through /api/extract with 12s timeout
           try {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('projectSlug', project.slug || project.course_code || 'default');
-            const extractRes = await fetch('/api/extract', { method: 'POST', body: formData });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const extractRes = await fetch('/api/extract', { method: 'POST', body: formData, signal: controller.signal });
+            clearTimeout(timeoutId);
             const extractData = await extractRes.json();
             if (extractData.success && extractData.text) {
               contentText = extractData.text;
@@ -408,12 +412,14 @@ export function CourseDossierHub({ project, organization }: Props) {
           // Immediately update state so file card appears in UI instantly
           setFiles(prev => [newRecord, ...prev.filter(f => f.id !== newRecord.id)]);
 
-          // Trigger non-blocking AI syllabus extraction if course spec or syllabus content is provided
-          if (detectedCategory === 'COURSE_SPEC' || contentText.includes('Lecture') || contentText.includes('Week') || contentText.includes('Topic')) {
+          // Trigger non-blocking AI syllabus extraction ONLY if this file is explicitly a Course Specification / Syllabus
+          const isExplicitSpec = detectedCategory === 'COURSE_SPEC' || lowerName.includes('spec') || lowerName.includes('syllabus') || lowerName.includes('curriculum');
+          if (!triggeredAiSyllabus && isExplicitSpec && contentText.length > 50) {
+            triggeredAiSyllabus = true;
             extractLecturesWithAi(project.id, contentText)
               .then((aiRes: any) => {
                 if (aiRes.usedAi && aiRes.sessions.length > 0) {
-                  setDropToast(`⚡ SYLLABUS_ARCHITECT synthesized ${aiRes.sessions.length} sessions from "${file.name}"! (${aiRes.modelUsed})`);
+                  setDropToast(`⚡ SYLLABUS_ARCHITECT synthesized ${aiRes.sessions.length} sessions from "${file.name}"! (${aiRes.modelUsed || 'AI'})`);
                   setTimeout(() => setDropToast(null), 6000);
                 }
               })
@@ -424,9 +430,11 @@ export function CourseDossierHub({ project, organization }: Props) {
         }
       }
 
-      // Auto-sync real uploaded files to Obsidian Vault on disk
+      // Auto-sync real uploaded files to Obsidian Vault on disk with 8s timeout
       try {
-        await syncCourseToObsidian(organization || null, project, undefined, undefined, addedFiles);
+        const syncPromise = syncCourseToObsidian(organization || null, project, undefined, undefined, addedFiles);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Sync timeout')), 8000));
+        await Promise.race([syncPromise, timeoutPromise]);
         setDropToast(`✅ Ingested ${addedFiles.length} file(s) and synced to Obsidian Vault!`);
       } catch {
         setDropToast(`✅ Ingested ${addedFiles.length} file(s) into Course Dossier!`);
@@ -744,6 +752,8 @@ export function CourseDossierHub({ project, organization }: Props) {
         activeAgent={meterAgent}
         currentPhaseText={meterPhaseText}
         phases={meterPhases}
+        modelName="Dossier Ingestion Engine"
+        provider="engine"
       />
 
       {/* Hidden File Input for Native File Browser */}
