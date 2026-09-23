@@ -41,18 +41,18 @@ export function MascotConfigEditor({ mascot, onChange }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-          <Smile className="w-5 h-5 text-amber-400" />
-          Mascot & Character Persona Rules
+        <h3 className="text-base font-display font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Smile className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+          Mascot &amp; Character Persona Rules
         </h3>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Optionally configure an institution mascot character (e.g. Tata, Nova, Leo) and map specific visual poses to pedagogical slide stages (e.g. Welcoming, Cognitive Challenge, Celebration).
         </p>
       </div>
 
-      <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 space-y-5">
+      <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-5">
         <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Character / Mascot Name
           </label>
           <input
@@ -60,16 +60,16 @@ export function MascotConfigEditor({ mascot, onChange }: Props) {
             placeholder="e.g. Tata, Robi, Spark"
             value={mascot.character_name || ''}
             onChange={(e) => onChange({ ...mascot, character_name: e.target.value || null })}
-            className="w-full max-w-sm bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-400"
+            className="w-full max-w-sm bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500 dark:focus:border-amber-400"
           />
         </div>
 
         {/* Poses List */}
-        <div className="space-y-3 pt-3 border-t border-slate-800">
+        <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Image className="w-4 h-4 text-amber-400" />
-              Configured Character Poses & Contexts ({mascot.poses.length})
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Image className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              Configured Character Poses &amp; Contexts ({mascot.poses.length})
             </span>
           </div>
 
@@ -77,25 +77,25 @@ export function MascotConfigEditor({ mascot, onChange }: Props) {
             {mascot.poses.map((pose, idx) => (
               <div
                 key={idx}
-                className="p-3 bg-slate-950 border border-slate-800 rounded-lg space-y-1.5 relative group"
+                className="p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1.5 relative group shadow-2xs"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
                     {pose.pose_name}
                   </span>
                   <button
                     type="button"
                     onClick={() => removePose(idx)}
-                    className="text-slate-500 hover:text-rose-400 transition"
+                    className="text-slate-400 hover:text-rose-500 transition"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="text-xs font-mono text-slate-300 truncate">
+                <div className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate">
                   📁 {pose.asset_file}
                 </div>
-                <div className="text-[11px] text-slate-400">
-                  Target: <span className="text-slate-200">{pose.slide_context}</span>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Target: <span className="text-slate-800 dark:text-slate-200 font-medium">{pose.slide_context}</span>
                 </div>
               </div>
             ))}
@@ -113,20 +113,20 @@ export function MascotConfigEditor({ mascot, onChange }: Props) {
               placeholder="Pose (e.g. thinking)"
               value={poseName}
               onChange={(e) => setPoseName(e.target.value)}
-              className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
+              className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
             />
             <input
               type="text"
               placeholder="Asset (e.g. tata_thinking.png)"
               value={assetFile}
               onChange={(e) => setAssetFile(e.target.value)}
-              className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
+              className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
             />
             <div className="flex gap-2">
               <select
                 value={slideContext}
                 onChange={(e) => setSlideContext(e.target.value)}
-                className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-amber-400"
+                className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
               >
                 <option value="title_slide">Title / Intro Slide</option>
                 <option value="challenge_slide">Cognitive Challenge</option>
@@ -136,7 +136,7 @@ export function MascotConfigEditor({ mascot, onChange }: Props) {
               <button
                 type="button"
                 onClick={addPose}
-                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition"
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white dark:text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition shadow-2xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add

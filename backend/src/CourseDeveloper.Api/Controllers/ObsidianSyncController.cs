@@ -78,16 +78,24 @@ public class ObsidianSyncController : ControllerBase
         return Ok(record);
     }
 
-    [HttpPost("sync-org-logo")]
-    public async Task<ActionResult> SyncOrgLogo([FromForm] string organizationSlug, [FromForm] IFormFile file)
+    public class SyncOrgLogoRequest
     {
-        var org = await _orgRepo.GetBySlugAsync(organizationSlug);
+        public string OrganizationSlug { get; set; } = string.Empty;
+        public IFormFile File { get; set; } = null!;
+    }
+
+    [HttpPost("sync-org-logo")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult> SyncOrgLogo([FromForm] SyncOrgLogoRequest request)
+    {
+        if (request.File == null) return BadRequest("File is required.");
+        var org = await _orgRepo.GetBySlugAsync(request.OrganizationSlug);
         if (org == null) return NotFound("Organization not found.");
 
         var projects = await _projectRepo.GetAllAsync(org.Id);
         using var stream = new MemoryStream();
-        await file.CopyToAsync(stream);
-        var synced = await _obsidianService.SyncOrgLogoAsync(org, projects, file.FileName, stream.ToArray());
+        await request.File.CopyToAsync(stream);
+        var synced = await _obsidianService.SyncOrgLogoAsync(org, projects, request.File.FileName, stream.ToArray());
         return Ok(new { synced });
     }
 

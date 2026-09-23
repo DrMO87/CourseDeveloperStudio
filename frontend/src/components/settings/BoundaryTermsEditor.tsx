@@ -32,16 +32,16 @@ export function BoundaryTermsEditor({ boundaryTerms, onChange }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 text-rose-400" />
+        <h3 className="text-base font-display font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-rose-500 dark:text-rose-400" />
           Lecturer Boundary Isolation Rules
         </h3>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Specify forbidden lecturer-only words, lecturer tags, or answer markers. If any of these strings appear in learner-facing slide source or student summaries, the Lecturer Boundary Gate triggers an immediate hard FAIL.
         </p>
       </div>
 
-      <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-800 space-y-4">
+      <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -54,12 +54,12 @@ export function BoundaryTermsEditor({ boundaryTerms, onChange }: Props) {
                 addTerm();
               }
             }}
-            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2 text-sm text-slate-200 focus:outline-none focus:border-rose-400"
+            className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-rose-500"
           />
           <button
             type="button"
             onClick={addTerm}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Add Forbidden Marker
@@ -67,7 +67,7 @@ export function BoundaryTermsEditor({ boundaryTerms, onChange }: Props) {
         </div>
 
         <div className="pt-2">
-          <div className="text-xs font-medium text-slate-400 mb-2 flex items-center gap-1.5">
+          <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1.5">
             <Tag className="w-3.5 h-3.5" />
             Active Forbidden Phrases ({boundaryTerms.forbidden_strings.length})
           </div>
@@ -76,13 +76,13 @@ export function BoundaryTermsEditor({ boundaryTerms, onChange }: Props) {
             {boundaryTerms.forbidden_strings.map((term) => (
               <div
                 key={term}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-900/40 bg-rose-950/30 text-rose-200 text-xs font-medium"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-200 text-xs font-medium shadow-2xs"
               >
                 <span>{term}</span>
                 <button
                   type="button"
                   onClick={() => removeTerm(term)}
-                  className="text-rose-400 hover:text-rose-200 transition ml-1"
+                  className="text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-200 transition ml-1"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>

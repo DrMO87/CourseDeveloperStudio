@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "session_code": "Lec 11",
+  "title": "Gas Chromatography (GC): Columns, Stationary Phases, Detectors (FID, TCD, ECD)",
+  "course": {
+    "code": "PC 206",
+    "title": "Instrumental Analysis",
+    "institution": "Horus University in Egypt (HUE)",
+    "faculty": "Faculty of Pharmacy",
+    "department": "Pharmaceutical Chemistry",
+    "academic_year": "2019/2020",
+    "coordinator": "Dr. Mahmoud Medhat Elkhoudary",
+    "head_of_department": "Prof. Dr. Magda Abd El-Azeez"
+  },
+  "pedagogy": {
+    "module": "Chromatography & Separation Sciences",
+    "module_weight": "50%",
+    "exam_mark_weight": "3.75 - 7.5 Marks",
+    "duration_minutes": 60,
+    "targeted_ilos": [
+      "a1",
+      "a2",
+      "b1",
+      "b2"
+    ],
+    "core_lab_linkage": "Practical Exam 2 (Final Practical Assessment)",
+    "governing_formulas": [
+      "u = \\frac{L}{t_M} \\quad",
+      "\\quad I = 100 \\left[ n + \\frac{\\log t_R'(x) - \\log t_R'(n)}{\\log t_R'(n+1) - \\log t_R'(n)} \\right] \\quad (\\text{Kovats Index})"
+    ],
+    "cognitive_progression": {
+      "level_1_remember": "Define fundamental laws, terminology, and bounds of Gas Chromatography (GC): Columns, Stationary Phases, Detectors (FID, TCD, ECD).",
+      "level_2_understand": "Explain underlying physical mechanisms, instrumentation, and energy transitions.",
+      "level_3_apply": "Solve quantitative analytical calculations using $$u = \\frac{L}{t_M} \\quad | \\quad I = 100 \\left[ n + \\frac{\\log t_R'(x) - \\log t_R'(n)}{\\log t_R'(n+1) - \\log t_R'(n)} \\right] \\quad (\\text{Kovats Index})$$.",
+      "level_4_analyze": "Interpret spectral shifts, evaluate deviations, and troubleshoot analytical anomalies."
+    }
+  },
+  "quality_gates": {
+    "language": {
+      "policy": "100% English Academic Delivery",
+      "arabic_tolerance": 0.0,
+      "status": "PASS"
+    },
+    "brand_palette": {
+      "primary_navy": "#002147",
+      "accent_gold": "#FFB81C",
+      "pure_white": "#FFFFFF",
+      "prohibited_colors": [
+        "#FF0000",
+        "#990000"
+      ],
+      "status": "PASS"
+    },
+    "pedagogical_boundary": {
+      "retained_scope": "Scope of GC for volatile, thermally stable compounds, mobile carrier gases (He, N2, H2), sample injection systems (split/splitless heated injector, headspace analysis), columns (packed columns vs fused silica open tubular FSOT capillary columns: WCOT, SCOT, PLOT), stationary liquid phases (polysiloxanes, polyethylene glycols), temperature programming, detectors (Flame Ionization Detector FID, Thermal Conductivity Detector TCD, Electron Capture Detector ECD), derivatization (silylation, alkylation) for non-volatile polar pharmaceuticals.",
+      "non_forced_clinical_rationale": "Covers vapor-phase thermodynamics, carrier gas pneumatics, capillary column wall coatings, and ionization detectors. Residual solvent analysis per USP <467> serves as compendial quality control benchmark.",
+      "excluded_scope": "GC-MS spectral fragmentation library matching algorithms.",
+      "status": "PASS"
+    },
+    "vision_filtering": {
+      "policy": "Separate core educational diagrams from decorative slide artifacts",
+      "approved_assets_count": 2,
+      "filtered_decorative_count": 0,
+      "status": "PASS"
+    }
+  },
+  "visual_assets": {
+    "approved_scientific": [
+      {
+        "asset_id": "logo-hue.png",
+        "file_path": "assets/logo-hue.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Horus University in Egypt (HUE) Official Crest",
+        "technical_caption": "Official university emblem for institutional slide branding (#002147 / #FFB81C).",
+        "ocr_transcript": "HORUS UNIVERSITY - EGYPT, HUE",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-pharmacy.png",
+        "file_path": "assets/logo-pharmacy.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Faculty of Pharmacy Official Seal",
+        "technical_caption": "Faculty of Pharmacy official emblem for accredited slide deck title.",
+        "ocr_transcript": "FACULTY OF PHARMACY, HORUS UNIVERSITY",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      }
+    ],
+    "filtered_decorative": []
+  },
+  "sources": [
+    "Instrumental_Course_Specification_final_2019-2020.docx.md [COURSE_SPEC]",
+    "blueprint-PC_206_Instrumental_Analysis_Bachelor_Pharmacy_2020.docx.md [ASSESSMENT_BLUEPRINT]",
+    "Question_Bank_Calibrated_PC206.md [QUESTION_BANK]",
+    "LEC_11.pptx.md [LEGACY_SLIDES]",
+    "Principles of Instrumental Analysis, Skoog et al., 6th ed. [TEXTBOOK]",
+    "British Pharmacopoeia (BP) & United States Pharmacopeia (USP) [PHARMACOPOEIA]"
+  ]
+}

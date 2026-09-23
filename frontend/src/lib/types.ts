@@ -41,6 +41,13 @@ export interface ProjectDossierFile {
 export interface BrandPalette {
   approved: string[];
   retired: string[];
+  font_arabic?: string;
+  font_latin?: string;
+}
+
+export interface TypographyConfig {
+  font_arabic: string;
+  font_latin: string;
 }
 
 export interface LanguagePolicy {
@@ -78,6 +85,7 @@ export interface Organization {
   institution_type: InstitutionType;
   logo_url?: string | null;
   brand_palette: BrandPalette;
+  typography?: TypographyConfig;
   language_policy: LanguagePolicy;
   mascot_config: MascotConfig;
   boundary_terms: BoundaryTermsConfig;
@@ -138,10 +146,10 @@ export interface CourseSession {
   duration_minutes?: number;
   current_stage: PipelineStage;
   completed_stages?: PipelineStage[];
-  blueprint_markdown?: string;
-  slides_source_markdown?: string;
-  home_summary_markdown?: string;
-  decisions_markdown?: string;
+  blueprint_markdown?: string | null;
+  slides_source_markdown?: string | null;
+  home_summary_markdown?: string | null;
+  decisions_markdown?: string | null;
   status: string;
   approval_kind?: string | null;
   approval_note?: string | null;

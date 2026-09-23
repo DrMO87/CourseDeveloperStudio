@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function ObsidianParaBrowser({
-  apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000',
+  apiBaseUrl = (typeof window !== 'undefined' ? '/backend-api' : (process.env.INTERNAL_API_URL || 'http://backend:5000')),
   projectSlug,
   orgSlug,
   onOpenFile,
@@ -243,26 +243,27 @@ export default function ObsidianParaBrowser({
 }
 
 function getDefaultCategoryFiles(cat: string, projectSlug?: string, orgSlug?: string): { name: string; type: string }[] {
-  const pSlug = projectSlug || 'Course_EV3_Studio';
-  const oSlug = orgSlug || 'Horus_University';
+  const pSlug = projectSlug || 'Inst-Analysis';
+  const oSlug = orgSlug || 'horus-university-egypt';
 
   switch (cat) {
     case '01_Projects':
       return [
-        { name: `${pSlug}/L1-s1/blueprint.md`, type: 'Blueprint' },
-        { name: `${pSlug}/L1-s1/slides-source.md`, type: 'Slides Source' },
-        { name: `${pSlug}/L1-s1/home-summary.md`, type: 'Summary' },
-        { name: `${pSlug}/L1-s1/decisions.md`, type: 'Decisions' },
+        { name: `${pSlug}/Lec 01/blueprint.md`, type: 'Blueprint' },
+        { name: `${pSlug}/Lec 01/slides-source.md`, type: 'Slides Source' },
+        { name: `${pSlug}/Lec 01/home-summary.md`, type: 'Summary' },
+        { name: `${pSlug}/Lec 01/decisions.md`, type: 'Decisions' },
+        { name: `${pSlug}/Lec 01/SOURCES.md`, type: 'Sources Citation' },
       ];
     case '02_Areas':
       return [
-        { name: `${oSlug}/Branding_Rule.md`, type: 'Brand Contract' },
-        { name: `${oSlug}/Mascot_Usage_Guide.md`, type: 'Mascot Guide' },
+        { name: `${oSlug}/Brand_Identity_Contract.md`, type: 'Brand Contract' },
       ];
     case '03_Resources':
       return [
-        { name: `Catalogs/Source_Material_Catalog.md`, type: 'Catalog' },
-        { name: `Pedagogy/Bloom_Taxonomy_Rubric.md`, type: 'Rubric' },
+        { name: `Course_Dossier_Intake/COURSE_SPEC/Instrumental_Course_Specification_final_2019-2020.docx.md`, type: 'Course Specification' },
+        { name: `Course_Dossier_Intake/ASSESSMENT_BLUEPRINT/blueprint-PC_206_Instrumental_Analysis.docx.md`, type: 'Assessment Blueprint' },
+        { name: `Course_Dossier_Intake/QUESTION_BANK/Question_Bank_Calibrated_PC206.md`, type: 'Question Bank' },
       ];
     case '04_Archive':
       return [

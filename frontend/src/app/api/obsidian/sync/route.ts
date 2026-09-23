@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// STEP 10: this route used to be its own independent vault writer — it wrote directly to
-// disk with fabricated fallback curriculum content whenever real session markdown wasn't
-// present, competing with the .NET backend's ObsidianVaultService. The backend is now the
-// one canonical writer; this route only forwards the caller's already-fetched data to it,
-// carrying the caller's own auth token through (every backend endpoint requires one).
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+// STEP 10 / Engine Alignment: The .NET backend (ObsidianVaultService behind ObsidianSyncController)
+// is the single canonical vault writer. This route forwards client-authenticated sync requests
+// to the backend, ensuring zero fabricated or dummy content is written to disk.
+const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,23 +18,31 @@ export async function POST(req: NextRequest) {
     const { project, sessions = [], activeSession, dossierFiles = [] } = body;
 
     if (!project?.id) {
-      return NextResponse.json({ success: false, message: 'No course project selected to sync.' });
+      return NextResponse.json({ success: false, message: 'No course project selected to sync.' }, { status: 400 });
     }
 
     const sessionsToSync = sessions.length > 0 ? sessions : (activeSession ? [activeSession] : []);
     const syncedFiles: string[] = [];
     const errors: string[] = [];
 
+    // 1. Sync Sessions via Canonical Backend Writer
     for (const session of sessionsToSync) {
       const result = await forwardToBackend('sync-session', { ...session, project_id: session.project_id || project.id }, authHeader);
-      if (result.ok) syncedFiles.push(`vault-relative-path:${result.data?.vault_relative_path ?? session.session_code}`);
-      else errors.push(`session ${session.session_code || session.id}: ${result.error}`);
+      if (result.ok) {
+        syncedFiles.push(`vault-relative-path:${result.data?.vault_relative_path ?? session.session_code}`);
+      } else {
+        errors.push(`session ${session.session_code || session.id}: ${result.error}`);
+      }
     }
 
+    // 2. Sync Ingested Dossier Files via Canonical Backend Writer
     for (const file of dossierFiles) {
       const result = await forwardToBackend('sync-dossier-file', { ...file, project_id: file.project_id || project.id }, authHeader);
-      if (result.ok) syncedFiles.push(`vault-relative-path:${result.data?.vault_relative_path ?? file.file_name}`);
-      else errors.push(`dossier file ${file.file_name || file.id}: ${result.error}`);
+      if (result.ok) {
+        syncedFiles.push(`vault-relative-path:${result.data?.vault_relative_path ?? file.file_name}`);
+      } else {
+        errors.push(`dossier file ${file.file_name || file.id}: ${result.error}`);
+      }
     }
 
     return NextResponse.json({

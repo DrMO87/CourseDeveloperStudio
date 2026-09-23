@@ -1,4 +1,4 @@
-﻿# Stage 1: Build & Restore
+# Stage 1: Build & Restore
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /source
 
@@ -7,6 +7,7 @@ COPY CourseDeveloper.sln .
 COPY src/CourseDeveloper.Core/CourseDeveloper.Core.csproj src/CourseDeveloper.Core/
 COPY src/CourseDeveloper.Infrastructure/CourseDeveloper.Infrastructure.csproj src/CourseDeveloper.Infrastructure/
 COPY src/CourseDeveloper.Api/CourseDeveloper.Api.csproj src/CourseDeveloper.Api/
+COPY src/CourseDeveloper.Worker/CourseDeveloper.Worker.csproj src/CourseDeveloper.Worker/
 COPY tests/CourseDeveloper.UnitTests/CourseDeveloper.UnitTests.csproj tests/CourseDeveloper.UnitTests/
 
 # Restore dependencies

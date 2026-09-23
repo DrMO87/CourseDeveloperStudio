@@ -87,6 +87,7 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
         name: org.name,
         slug: org.slug,
         institution_type: org.institution_type,
+        logo_url: org.logo_url,
         brand_palette: org.brand_palette,
         language_policy: org.language_policy,
         boundary_terms: org.boundary_terms,
@@ -121,7 +122,7 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center text-white/50 text-sm animate-pulse">
+      <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-500 dark:text-white/50 text-sm animate-pulse">
         Loading institution profile &amp; quality gate rules...
       </div>
     );
@@ -129,10 +130,10 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
 
   if (!org) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-400">
-        <AlertCircle className="w-12 h-12 text-rose-400 mx-auto mb-3" />
-        <h2 className="text-lg font-bold text-white">Institution not found</h2>
-        <Link href="/organizations" className="text-gold-400 hover:underline text-sm mt-2 inline-block">
+      <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-500 dark:text-slate-400">
+        <AlertCircle className="w-12 h-12 text-rose-500 dark:text-rose-400 mx-auto mb-3" />
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Institution not found</h2>
+        <Link href="/organizations" className="text-amber-600 dark:text-gold-400 hover:underline text-sm mt-2 inline-block">
           Return to Institutions list
         </Link>
       </div>
@@ -152,24 +153,24 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/10 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-white/10 pb-5">
         <div className="flex items-center gap-3">
           <Link
             href="/organizations"
-            className="p-2 bg-white/5 hover:bg-white/15 text-white/70 hover:text-white rounded-xl transition"
+            className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/15 text-slate-700 hover:text-slate-900 dark:text-white/70 dark:hover:text-white rounded-xl transition"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-display font-extrabold text-white">
+              <h1 className="text-xl font-display font-extrabold text-slate-900 dark:text-white">
                 {org.name}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-display font-bold bg-primary-950 text-gold-400 border border-gold-500/30">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-display font-bold bg-amber-500/10 dark:bg-primary-950 text-amber-800 dark:text-gold-400 border border-amber-500/20 dark:border-gold-500/30">
                 {org.institution_type}
               </span>
             </div>
-            <p className="text-xs text-white/50 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-white/60 mt-0.5">
               Configure deterministic quality gates and identity parameters for this institution
             </p>
           </div>
@@ -178,7 +179,7 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-5 py-2.5 bg-gradient-gold hover:opacity-90 active:scale-95 text-primary-900 font-display font-extrabold rounded-xl text-xs flex items-center gap-2 shadow-glow-gold transition-all disabled:opacity-50 select-none"
+          className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 dark:bg-gradient-gold active:scale-95 text-white dark:text-primary-900 font-display font-extrabold rounded-xl text-xs flex items-center gap-2 shadow-sm dark:shadow-glow-gold transition-all disabled:opacity-50 select-none cursor-pointer"
         >
           {saveSuccess ? (
             <>
@@ -195,7 +196,7 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
         {tabs.map((t) => {
           const Icon = t.icon;
           const isActive = activeTab === t.id;
@@ -205,8 +206,8 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
               onClick={() => setActiveTab(t.id)}
               className={`px-4 py-2 rounded-xl text-xs font-display font-bold flex items-center gap-2 transition-all ${
                 isActive
-                  ? 'bg-gradient-gold text-primary-900 shadow-glow-gold'
-                  : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                  ? 'bg-amber-500 text-white dark:bg-gradient-gold dark:text-primary-900 shadow-sm dark:shadow-glow-gold'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-white/5 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -217,7 +218,7 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
       </div>
 
       {/* Tab Contents */}
-      <div className="bg-[#001530]/80 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-card backdrop-blur-md">
+      <div className="bg-white dark:bg-[#001530]/80 border border-slate-200 dark:border-white/10 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-card backdrop-blur-md">
         {activeTab === 'palette' && (
           <BrandPaletteEditor
             palette={org.brand_palette}
@@ -265,33 +266,50 @@ function SettingsContent({ orgId: propOrgId }: { orgId?: string }) {
 
         {activeTab === 'general' && (
           <div className="space-y-4 max-w-lg">
-            <h3 className="text-base font-display font-bold text-white flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-gold-400" />
+            <h3 className="text-base font-display font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-amber-500 dark:text-gold-400" />
               General Metadata
             </h3>
 
             <div>
-              <label className="block text-xs font-display font-semibold text-white/80 mb-1">
+              <label className="block text-xs font-display font-semibold text-slate-700 dark:text-white/80 mb-1">
                 Institution Name
               </label>
               <input
                 type="text"
                 value={org.name}
                 onChange={(e) => setOrg({ ...org, name: e.target.value })}
-                className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-gold-400"
+                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/15 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-gold-400"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-display font-semibold text-white/80 mb-1">
+              <label className="block text-xs font-display font-semibold text-slate-700 dark:text-white/80 mb-1">
                 Identifier Slug
               </label>
               <input
                 type="text"
                 value={org.slug}
                 onChange={(e) => setOrg({ ...org, slug: e.target.value })}
-                className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2 text-sm font-mono text-white focus:outline-none focus:border-gold-400"
+                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/15 rounded-xl px-3.5 py-2 text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-gold-400"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-display font-semibold text-slate-700 dark:text-white/80 mb-1">
+                Archetype Classification
+              </label>
+              <select
+                value={org.institution_type}
+                onChange={(e) => setOrg({ ...org, institution_type: e.target.value as any })}
+                className="w-full bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/15 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-gold-400"
+              >
+                <option value="university" className="bg-white text-slate-900 dark:bg-[#001530] dark:text-white">University / Higher Education Faculty</option>
+                <option value="academy" className="bg-white text-slate-900 dark:bg-[#001530] dark:text-white">Coding &amp; STEM Academy</option>
+                <option value="nursery" className="bg-white text-slate-900 dark:bg-[#001530] dark:text-white">Nursery &amp; Early Childhood</option>
+                <option value="school" className="bg-white text-slate-900 dark:bg-[#001530] dark:text-white">K-12 School</option>
+                <option value="training_center" className="bg-white text-slate-900 dark:bg-[#001530] dark:text-white">Corporate Training Center</option>
+              </select>
             </div>
           </div>
         )}

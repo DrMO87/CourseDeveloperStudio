@@ -319,6 +319,9 @@ alter table public.course_projects
     add column if not exists academic_term text,
     add column if not exists total_sessions int;
 
+alter table public.organizations
+    add column if not exists quality_guidelines jsonb not null default '{"authority_name": "", "core_guidelines": "", "reference_url": ""}';
+
 -- STEP 11: ClaimNextAsync's WHERE clause had no backoff check at all — a job that went
 -- 'retryable' was eligible for immediate re-claim on the very next poll. Standing Rule
 -- 10a requires content-quality exhaustion to be "rescheduled automatically with

@@ -11,9 +11,7 @@ function safeSegment(raw: string): string {
   return cleaned || 'untitled';
 }
 
-// Resolves `candidate` and verifies it did not escape VAULT_ROOT — a bare relative
-// filePath query param must never be able to read anything outside the vault (this used
-// to also accept an absolute path unconditionally, which was an arbitrary-file-read).
+// Resolves `candidate` and verifies it did not escape VAULT_ROOT
 async function containedPath(candidate: string): Promise<string | null> {
   const resolved = path.resolve(candidate);
   const rootWithSep = VAULT_ROOT.endsWith(path.sep) ? VAULT_ROOT : VAULT_ROOT + path.sep;
@@ -30,6 +28,46 @@ async function containedPath(candidate: string): Promise<string | null> {
   }
 }
 
+async function resolveTargetPath(filePath: string, projectSlug?: string | null): Promise<string | null> {
+  // 1. Try project's dedicated vault if specified
+  if (projectSlug) {
+    const candidate = await containedPath(path.join(VAULT_ROOT, 'vaults', safeSegment(projectSlug), filePath));
+    if (candidate) {
+      try {
+        await fs.access(candidate);
+        return candidate;
+      } catch {}
+    }
+  }
+
+  // 2. Try scanning across all vaults in vaults/
+  const vaultsDir = path.join(VAULT_ROOT, 'vaults');
+  try {
+    const entries = await fs.readdir(vaultsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const candidate = await containedPath(path.join(vaultsDir, entry.name, filePath));
+        if (!candidate) continue;
+        try {
+          await fs.access(candidate);
+          return candidate;
+        } catch {}
+      }
+    }
+  } catch {}
+
+  // 3. Try direct path under workspace root
+  const rootCandidate = await containedPath(path.join(VAULT_ROOT, filePath));
+  if (rootCandidate) {
+    try {
+      await fs.access(rootCandidate);
+      return rootCandidate;
+    } catch {}
+  }
+
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -42,48 +80,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Absolute paths are not allowed' }, { status: 400 });
     }
 
-    let targetPath: string | null = null;
-
-    // 1. Try project's dedicated vault if specified
-    if (!targetPath && projectSlug) {
-      const candidate = await containedPath(path.join(VAULT_ROOT, 'vaults', safeSegment(projectSlug), filePath));
-      if (candidate) {
-        try {
-          await fs.access(candidate);
-          targetPath = candidate;
-        } catch {}
-      }
-    }
-
-    // 2. Try scanning across all vaults in vaults/
-    if (!targetPath) {
-      const vaultsDir = path.join(VAULT_ROOT, 'vaults');
-      try {
-        const entries = await fs.readdir(vaultsDir, { withFileTypes: true });
-        for (const entry of entries) {
-          if (entry.isDirectory()) {
-            const candidate = await containedPath(path.join(vaultsDir, entry.name, filePath));
-            if (!candidate) continue;
-            try {
-              await fs.access(candidate);
-              targetPath = candidate;
-              break;
-            } catch {}
-          }
-        }
-      } catch {}
-    }
-
-    // 3. Try direct path under workspace root
-    if (!targetPath) {
-      const candidate = await containedPath(path.join(VAULT_ROOT, filePath));
-      if (candidate) {
-        try {
-          await fs.access(candidate);
-          targetPath = candidate;
-        } catch {}
-      }
-    }
+    const targetPath = await resolveTargetPath(filePath, projectSlug);
 
     if (!targetPath) {
       return NextResponse.json({ success: false, error: `File not found on disk: ${filePath}` }, { status: 404 });
@@ -95,6 +92,53 @@ export async function GET(req: NextRequest) {
       success: true,
       path: filePath,
       content
+    });
+  } catch (err: any) {
+    return NextResponse.json({
+      success: false,
+      error: err.message
+    }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { path: filePath, projectSlug, content } = body;
+
+    if (!filePath) {
+      return NextResponse.json({ success: false, error: 'path parameter required' }, { status: 400 });
+    }
+    if (path.isAbsolute(filePath)) {
+      return NextResponse.json({ success: false, error: 'Absolute paths are not allowed' }, { status: 400 });
+    }
+    if (typeof content !== 'string') {
+      return NextResponse.json({ success: false, error: 'content must be a string' }, { status: 400 });
+    }
+
+    let targetPath = await resolveTargetPath(filePath, projectSlug);
+
+    // If file doesn't exist yet but projectSlug is specified, allow creating within contained bounds
+    if (!targetPath && projectSlug) {
+      const candidate = path.join(VAULT_ROOT, 'vaults', safeSegment(projectSlug), filePath);
+      const contained = path.resolve(candidate).startsWith(VAULT_ROOT);
+      if (contained) {
+        targetPath = candidate;
+        await fs.mkdir(path.dirname(targetPath), { recursive: true });
+      }
+    }
+
+    if (!targetPath) {
+      return NextResponse.json({ success: false, error: `Invalid or unresolvable path: ${filePath}` }, { status: 400 });
+    }
+
+    await fs.writeFile(targetPath, content, 'utf8');
+
+    return NextResponse.json({
+      success: true,
+      path: filePath,
+      bytesWritten: content.length,
+      message: 'File saved successfully to Obsidian vault on disk'
     });
   } catch (err: any) {
     return NextResponse.json({

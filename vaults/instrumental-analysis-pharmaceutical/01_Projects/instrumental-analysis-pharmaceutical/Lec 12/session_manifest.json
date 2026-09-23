@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "session_code": "Lec 12",
+  "title": "Chromatographic Theory: Plate Height (H), Resolution (Rs), Van Deemter Equation",
+  "course": {
+    "code": "PC 206",
+    "title": "Instrumental Analysis",
+    "institution": "Horus University in Egypt (HUE)",
+    "faculty": "Faculty of Pharmacy",
+    "department": "Pharmaceutical Chemistry",
+    "academic_year": "2019/2020",
+    "coordinator": "Dr. Mahmoud Medhat Elkhoudary",
+    "head_of_department": "Prof. Dr. Magda Abd El-Azeez"
+  },
+  "pedagogy": {
+    "module": "Chromatography & Separation Sciences",
+    "module_weight": "50%",
+    "exam_mark_weight": "3.75 - 7.5 Marks",
+    "duration_minutes": 60,
+    "targeted_ilos": [
+      "a1",
+      "a2",
+      "b1",
+      "b2"
+    ],
+    "core_lab_linkage": "Comprehensive Practical Revision & Station Review",
+    "governing_formulas": [
+      "N = 16 \\left(\\frac{t_R}{W}\\right)^2 = 5.545 \\left(\\frac{t_R}{W_{0.5}}\\right)^2 \\quad",
+      "\\quad H = \\frac{L}{N} = A + \\frac{B}{u} + C \\cdot u \\quad",
+      "\\quad R_s = \\frac{\\sqrt{N}}{4} \\left(\\frac{\\alpha - 1}{\\alpha}\\right) \\left(\\frac{k_2'}{1 + k_2'}\\right)"
+    ],
+    "cognitive_progression": {
+      "level_1_remember": "Define fundamental laws, terminology, and bounds of Chromatographic Theory: Plate Height (H), Resolution (Rs), Van Deemter Equation.",
+      "level_2_understand": "Explain underlying physical mechanisms, instrumentation, and energy transitions.",
+      "level_3_apply": "Solve quantitative analytical calculations using $$N = 16 \\left(\\frac{t_R}{W}\\right)^2 = 5.545 \\left(\\frac{t_R}{W_{0.5}}\\right)^2 \\quad | \\quad H = \\frac{L}{N} = A + \\frac{B}{u} + C \\cdot u \\quad | \\quad R_s = \\frac{\\sqrt{N}}{4} \\left(\\frac{\\alpha - 1}{\\alpha}\\right) \\left(\\frac{k_2'}{1 + k_2'}\\right)$$.",
+      "level_4_analyze": "Interpret spectral shifts, evaluate deviations, and troubleshoot analytical anomalies."
+    }
+  },
+  "quality_gates": {
+    "language": {
+      "policy": "100% English Academic Delivery",
+      "arabic_tolerance": 0.0,
+      "status": "PASS"
+    },
+    "brand_palette": {
+      "primary_navy": "#002147",
+      "accent_gold": "#FFB81C",
+      "pure_white": "#FFFFFF",
+      "prohibited_colors": [
+        "#FF0000",
+        "#990000"
+      ],
+      "status": "PASS"
+    },
+    "pedagogical_boundary": {
+      "retained_scope": "Peak shape and Gaussian distribution, column efficiency metrics (plate count N, plate height H), rate theory of chromatography, Van Deemter equation deconstruction (Eddy diffusion A-term and particle size dp, longitudinal diffusion B-term and mobile phase diffusivity, mass transfer resistance C-term into stationary and mobile phases), Purnell resolution equation connecting efficiency (N), selectivity (alpha), and retention (k'), strategies for chromatographic method optimization.",
+      "non_forced_clinical_rationale": "A pure physical-mathematical derivation of band broadening, kinetic rate theory, and chromatographic optimization equations. Zero clinical pharmacology is forced.",
+      "excluded_scope": "Non-linear preparative overload isotherm mathematics.",
+      "status": "PASS"
+    },
+    "vision_filtering": {
+      "policy": "Separate core educational diagrams from decorative slide artifacts",
+      "approved_assets_count": 2,
+      "filtered_decorative_count": 0,
+      "status": "PASS"
+    }
+  },
+  "visual_assets": {
+    "approved_scientific": [
+      {
+        "asset_id": "logo-hue.png",
+        "file_path": "assets/logo-hue.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Horus University in Egypt (HUE) Official Crest",
+        "technical_caption": "Official university emblem for institutional slide branding (#002147 / #FFB81C).",
+        "ocr_transcript": "HORUS UNIVERSITY - EGYPT, HUE",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-pharmacy.png",
+        "file_path": "assets/logo-pharmacy.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Faculty of Pharmacy Official Seal",
+        "technical_caption": "Faculty of Pharmacy official emblem for accredited slide deck title.",
+        "ocr_transcript": "FACULTY OF PHARMACY, HORUS UNIVERSITY",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      }
+    ],
+    "filtered_decorative": []
+  },
+  "sources": [
+    "Instrumental_Course_Specification_final_2019-2020.docx.md [COURSE_SPEC]",
+    "blueprint-PC_206_Instrumental_Analysis_Bachelor_Pharmacy_2020.docx.md [ASSESSMENT_BLUEPRINT]",
+    "Question_Bank_Calibrated_PC206.md [QUESTION_BANK]",
+    "LEC_12.pptx.md [LEGACY_SLIDES]",
+    "Principles of Instrumental Analysis, Skoog et al., 6th ed. [TEXTBOOK]",
+    "British Pharmacopoeia (BP) & United States Pharmacopeia (USP) [PHARMACOPOEIA]"
+  ]
+}

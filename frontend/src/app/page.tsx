@@ -48,7 +48,10 @@ import {
   Presentation,
   Share2,
   Pencil,
-  Trash2,
+  Trash2, 
+  RotateCcw,
+  AlertTriangle,
+  Loader2,
   Languages,
   Globe
 } from 'lucide-react';
@@ -103,6 +106,8 @@ function DashboardContent() {
   const [showObsidianGraphModal, setShowObsidianGraphModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [previewingParaFile, setPreviewingParaFile] = useState<string | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resettingPipeline, setResettingPipeline] = useState(false);
   const [dossierFiles, setDossierFiles] = useState<ProjectDossierFile[]>([]);
 
   // Initial Load from Supabase & Synchronized Store
@@ -326,24 +331,98 @@ function DashboardContent() {
     }
   };
 
-  const handleResetPipeline = async () => {
-    if (selectedSession && selectedProject && typeof window !== 'undefined') {
-      localStorage.removeItem(`cds_session_stage_${selectedSession.id}`);
-      localStorage.removeItem(`cds_session_completed_stages_${selectedSession.id}`);
-      localStorage.removeItem(`cds_receipts_${selectedSession.id}`);
-      try {
-        const updated = await updateSessionCompletedStages(selectedSession.id, 'BRAND_SETUP');
-        setSessions(prev => prev.map(s => s.id === selectedSession.id ? updated : s));
-      } catch (error) {
-        setToastMessage(error instanceof Error ? error.message : 'Failed to reset the pipeline.');
-        setTimeout(() => setToastMessage(null), 5000);
-        return;
+  const handleResetPipeline = () => {
+    setShowResetModal(true);
+  };
+
+  const executeResetPipeline = async (resetAll: boolean) => {
+    if (!selectedProject) return;
+    setResettingPipeline(true);
+    setToastMessage(`⏳ Resetting Multi-Agent Pipeline & clearing generated vault files...`);
+
+    try {
+      // 1. Call API to clear vault session files while strictly keeping Dossier & ingestion intact
+      const res = await fetch('/api/obsidian/reset-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectSlug: selectedProject.slug || 'inst',
+          sessionId: selectedSession?.id,
+          sessionCode: selectedSession?.session_code,
+          resetAll
+        })
+      });
+
+      const data = await res.json();
+
+      // 2. Reset database state & localStorage for target session(s)
+      const sessionsToReset = resetAll ? sessions : (selectedSession ? [selectedSession] : []);
+
+      for (const s of sessionsToReset) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(`cds_session_stage_${s.id}`);
+          localStorage.removeItem(`cds_session_completed_stages_${s.id}`);
+          localStorage.removeItem(`cds_receipts_${s.id}`);
+        }
+        try {
+          await updateSessionCompletedStages(s.id, 'BRAND_SETUP', 'draft');
+        } catch {}
       }
+
+      // Update state for all or active
+      setSessions(prev => prev.map(s => {
+        if (resetAll || s.id === selectedSession?.id) {
+          return {
+            ...s,
+            current_stage: 'BRAND_SETUP' as PipelineStage,
+            completed_stages: [],
+            status: 'draft',
+            blueprint_markdown: undefined,
+            slides_source_markdown: undefined,
+            home_summary_markdown: undefined,
+            decisions_markdown: undefined
+          };
+        }
+        return s;
+      }));
+
+      if (selectedSession) {
+        setSelectedSession(prev => prev ? {
+          ...prev,
+          current_stage: 'BRAND_SETUP' as PipelineStage,
+          completed_stages: [],
+          status: 'draft',
+          blueprint_markdown: undefined,
+          slides_source_markdown: undefined,
+          home_summary_markdown: undefined,
+          decisions_markdown: undefined
+        } : null);
+      }
+
+      setCurrentStage('BRAND_SETUP');
+      setCompletedStages([]);
+      setReceipt(null);
+      setAgentLogs([]);
+      setShowResetModal(false);
+
+      // Trigger window event so PARA browser & file trees refresh
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('cds_vault_updated'));
+      }
+
+      if (data.success) {
+        setToastMessage(`✅ ${data.message || 'Pipeline reset successfully. Dossier contents preserved.'}`);
+      } else {
+        setToastMessage(`⚠️ Vault reset notice: ${data.error || 'Cleaned local state'}`);
+      }
+      setTimeout(() => setToastMessage(null), 6000);
+    } catch (err: any) {
+      console.error('Reset pipeline error:', err);
+      setToastMessage(`❌ Error resetting pipeline: ${err.message}`);
+      setTimeout(() => setToastMessage(null), 5000);
+    } finally {
+      setResettingPipeline(false);
     }
-    setCurrentStage('BRAND_SETUP');
-    setCompletedStages([]);
-    setReceipt(null);
-    setAgentLogs([]);
   };
 
   const handleRunStage = async (stage: PipelineStage) => {
@@ -1002,7 +1081,7 @@ function DashboardContent() {
                   value={newSessionCode}
                   onChange={(e) => setNewSessionCode(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
-                  placeholder="e.g. Lec 01 or PHAR301-L01"
+                  placeholder="e.g. Lec 01 or Lec 02"
                 />
               </div>
               <div>
@@ -1040,6 +1119,106 @@ function DashboardContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Multi-Agent Pipeline Confirmation Modal */}
+      {showResetModal && (
+        <div 
+          className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => !resettingPipeline && setShowResetModal(false)}
+        >
+          <div 
+            className="bg-white dark:bg-[#001530] border border-slate-200 dark:border-white/10 rounded-3xl w-full max-w-xl p-6 sm:p-8 space-y-6 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/20">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-display font-black text-slate-900 dark:text-white">
+                  Reset Multi-Agent Pipeline
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-white/60 leading-relaxed">
+                  Reset cognitive synthesis stages back to Step 0 (Brand Setup) and clear generated lesson drafts from the Obsidian vault.
+                </p>
+              </div>
+            </div>
+
+            {/* Safety Guarantee Info Grid */}
+            <div className="space-y-3">
+              {/* Preserved Green Box */}
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-display font-bold text-xs">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>100% PRESERVED &amp; KEPT SAFE</span>
+                </div>
+                <ul className="text-[11px] text-emerald-900/80 dark:text-emerald-200/80 space-y-1 list-disc list-inside">
+                  <li><strong className="font-semibold">Course Dossier:</strong> All uploaded specs, books, and blueprints in <code className="font-mono text-[10px] bg-emerald-500/20 px-1 py-0.5 rounded">01_Projects/{selectedProject?.slug}/Dossier/</code></li>
+                  <li><strong className="font-semibold">Extracted Visual Media:</strong> All figures, chemical structures, and spectra in <code className="font-mono text-[10px] bg-emerald-500/20 px-1 py-0.5 rounded">Dossier/_assets/</code></li>
+                  <li><strong className="font-semibold">Ingestion Ground-Truth:</strong> All syllabus notes in <code className="font-mono text-[10px] bg-emerald-500/20 px-1 py-0.5 rounded">03_Resources/Course_Dossier_Intake/</code></li>
+                  <li><strong className="font-semibold">Brand Identity:</strong> Institutional contracts and logos in <code className="font-mono text-[10px] bg-emerald-500/20 px-1 py-0.5 rounded">02_Areas/</code></li>
+                </ul>
+              </div>
+
+              {/* Cleared Rose Box */}
+              <div className="bg-rose-500/10 border border-rose-500/25 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 font-display font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <span>WILL BE CLEARED &amp; RESET</span>
+                </div>
+                <p className="text-[11px] text-rose-900/80 dark:text-rose-200/80 leading-relaxed">
+                  Generated session drafts (<code className="font-mono text-[10px] bg-rose-500/20 px-1 py-0.5 rounded">blueprint.md</code>, <code className="font-mono text-[10px] bg-rose-500/20 px-1 py-0.5 rounded">slides-source.md</code>, <code className="font-mono text-[10px] bg-rose-500/20 px-1 py-0.5 rounded">home-summary.md</code>, <code className="font-mono text-[10px] bg-rose-500/20 px-1 py-0.5 rounded">decisions.md</code>) and completed stage receipts.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                disabled={resettingPipeline}
+                onClick={() => setShowResetModal(false)}
+                className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-700 dark:text-white/80 rounded-xl text-xs font-display font-bold transition"
+              >
+                Cancel
+              </button>
+
+              {selectedSession && (
+                <button
+                  type="button"
+                  disabled={resettingPipeline}
+                  onClick={() => executeResetPipeline(false)}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-display font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                  title={`Reset only ${selectedSession.session_code}`}
+                >
+                  {resettingPipeline ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  )}
+                  <span>Reset Active Session ({selectedSession.session_code})</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={resettingPipeline}
+                onClick={() => executeResetPipeline(true)}
+                className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-rose-700 to-red-800 hover:from-rose-800 hover:to-red-900 text-white rounded-xl text-xs font-display font-extrabold flex items-center justify-center gap-1.5 shadow-md shadow-rose-900/20 transition disabled:opacity-50"
+                title="Reset all generated sessions across this course"
+              >
+                {resettingPipeline ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>Reset All ({sessions.length}) Sessions</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

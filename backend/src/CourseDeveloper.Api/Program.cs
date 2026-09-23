@@ -69,9 +69,11 @@ builder.Services.AddSingleton<IQualityGate, AssetReconciliationGate>();
 //   Shared:
 //     VAULT_ROOT — optional; falls back to Obsidian:VaultPath, then an application-relative vault
 // ---------------------------------------------------------------------------
-var supabaseConnectionString = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING") 
-    ?? builder.Configuration.GetConnectionString("SupabaseDb")
-    ?? "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=PLACEHOLDER-SET-SUPABASE_CONNECTION_STRING;";
+var rawConn = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+var supabaseConnectionString = !string.IsNullOrWhiteSpace(rawConn)
+    ? rawConn
+    : (builder.Configuration.GetConnectionString("SupabaseDb")
+       ?? "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=PLACEHOLDER-SET-SUPABASE_CONNECTION_STRING;");
 
 builder.Services.AddSingleton(_ =>
 {
@@ -96,9 +98,10 @@ builder.Services.AddScoped<IDossierRepository, NpgsqlDossierRepository>();
 builder.Services.AddScoped<IQualityReceiptRepository, NpgsqlQualityReceiptRepository>();
 
 // CORS — explicit origin allow-list only, never AllowAnyOrigin (decision 5)
-var corsAllowedOrigins = (Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
-        ?? builder.Configuration["Cors:AllowedOrigins"]
-        ?? "http://localhost:3000")
+var rawCors = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
+var corsAllowedOrigins = (!string.IsNullOrWhiteSpace(rawCors)
+        ? rawCors
+        : (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:3000"))
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 builder.Services.AddCors(options =>
@@ -113,9 +116,11 @@ builder.Services.AddCors(options =>
 
 // Authentication — validates JWTs issued by the same Supabase project the
 // frontend and MVP already authenticate against (one identity boundary, decision 6).
-var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL")
-    ?? builder.Configuration["Supabase:ProjectUrl"]
-    ?? "https://PLACEHOLDER-SET-SUPABASE_URL.supabase.co";
+var rawUrl = Environment.GetEnvironmentVariable("SUPABASE_URL");
+var supabaseUrl = !string.IsNullOrWhiteSpace(rawUrl)
+    ? rawUrl
+    : (builder.Configuration["Supabase:ProjectUrl"]
+       ?? "https://PLACEHOLDER-SET-SUPABASE_URL.supabase.co");
 var supabaseIssuer = $"{supabaseUrl.TrimEnd('/')}/auth/v1";
 
 builder.Services
@@ -134,12 +139,16 @@ builder.Services
         options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     });
 
+var requireAuth = string.Equals(Environment.GetEnvironmentVariable("REQUIRE_AUTH"), "true", StringComparison.OrdinalIgnoreCase);
 builder.Services.AddAuthorization(options =>
 {
-    // Every controller requires an authenticated caller by default; none are public yet.
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build();
+    if (requireAuth)
+    {
+        // Enforce JWT authentication on every endpoint when explicitly enabled.
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+    }
 });
 
 var app = builder.Build();

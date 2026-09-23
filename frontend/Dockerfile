@@ -1,4 +1,4 @@
-﻿# Stage 1: Install dependencies
+# Stage 1: Install dependencies
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
@@ -11,16 +11,17 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
+ARG CACHEBUST=2
 COPY . .
 
 # Build-time environment variables for static optimization
 ARG NEXT_PUBLIC_SUPABASE_URL=https://gjxhfyfonjdcaimxjipp.supabase.co
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR-ANON-KEY
-ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:5000
+ARG NEXT_PUBLIC_API_BASE_URL=/backend-api
 
-ENV NEXT_PUBLIC_SUPABASE_URL=
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=
-ENV NEXT_PUBLIC_API_BASE_URL=
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build

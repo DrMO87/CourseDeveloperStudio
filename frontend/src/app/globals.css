@@ -1,5 +1,5 @@
-/* ─── Google Fonts: Inter & Outfit ─────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+/* ─── Google Fonts: Modern Latin & Modern Arabic ─────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Alexandria:wght@400;600;700;800&family=Almarai:wght@400;700;800&family=Cairo:wght@400;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Lexend:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700&family=Readex+Pro:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -63,6 +63,9 @@ html.dark {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto !important;
   }
 
   body {
@@ -70,6 +73,9 @@ html.dark {
     color: var(--text-primary);
     font-family: var(--font-inter);
     transition: background-color 0.25s ease, color 0.25s ease;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   h1, h2, h3, h4, h5, h6 {

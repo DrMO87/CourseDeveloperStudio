@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 // ObsidianVaultService is the only component allowed to write into vaults/, so this route
 // just forwards the caller's identifiers and bearer token to its sync-nlm-downloads
 // endpoint, which copies the files /api/nlm's download_all already staged on disk.
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://backend:5000';
 
 export async function POST(req: NextRequest) {
   try {

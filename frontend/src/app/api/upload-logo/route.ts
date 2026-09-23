@@ -11,7 +11,7 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/svg+xml': 'svg',
   'image/webp': 'webp',
 };
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
 function isSafePathSegment(value: unknown): value is string {
   return typeof value === 'string'

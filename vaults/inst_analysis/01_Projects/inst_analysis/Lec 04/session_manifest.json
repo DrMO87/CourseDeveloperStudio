@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "session_code": "Lec 04",
+  "title": "Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems",
+  "course": {
+    "code": "PC 206",
+    "title": "Instrumental Analysis",
+    "institution": "Horus University in Egypt (HUE)",
+    "faculty": "Faculty of Pharmacy",
+    "department": "Pharmaceutical Chemistry",
+    "academic_year": "2019/2020",
+    "coordinator": "Dr. Mahmoud Medhat Elkhoudary",
+    "head_of_department": "Prof. Dr. Magda Abd El-Azeez"
+  },
+  "pedagogy": {
+    "module": "Optical Spectroscopy & Photometry",
+    "module_weight": "50%",
+    "exam_mark_weight": "3.75 - 7.5 Marks",
+    "duration_minutes": 60,
+    "targeted_ilos": [
+      "a1",
+      "a2",
+      "b1",
+      "b2"
+    ],
+    "core_lab_linkage": "Colorimetric determination of CuSO4",
+    "governing_formulas": [
+      "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+    ],
+    "cognitive_progression": {
+      "level_1_remember": "Define fundamental laws, terminology, and bounds of Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems.",
+      "level_2_understand": "Explain underlying physical mechanisms, instrumentation, and energy transitions.",
+      "level_3_apply": "Solve quantitative analytical calculations using $$\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})$$.",
+      "level_4_analyze": "Interpret spectral shifts, evaluate deviations, and troubleshoot analytical anomalies."
+    }
+  },
+  "quality_gates": {
+    "language": {
+      "policy": "100% English Academic Delivery",
+      "arabic_tolerance": 0.0,
+      "status": "PASS"
+    },
+    "brand_palette": {
+      "primary_navy": "#002147",
+      "accent_gold": "#FFB81C",
+      "pure_white": "#FFFFFF",
+      "prohibited_colors": [
+        "#FF0000",
+        "#990000"
+      ],
+      "status": "PASS"
+    },
+    "pedagogical_boundary": {
+      "retained_scope": "Solvent polarity shifts (hypsochromic blue shift for n->pi* due to ground-state H-bonding stabilization; bathochromic red shift for pi->pi* due to excited-state dipole stabilization), pH effects on ionizable chromophores (phenol vs phenolate bathochromic shift; aniline vs anilinium hypsochromic shift), Woodward-Fieser rules for conjugated dienes and enones, steric hindrance inhibiting coplanarity.",
+      "non_forced_clinical_rationale": "Focuses on physical organic chemistry of conjugated systems, solvent polarity dielectric shifts, and pH-dependent chromophore ionization. Drug applications serve purely as chemical structures demonstrating auxochromic resonance.",
+      "excluded_scope": "Infrared vibrational frequency calculations.",
+      "status": "PASS"
+    },
+    "vision_filtering": {
+      "policy": "Separate core educational diagrams from decorative slide artifacts",
+      "approved_assets_count": 16,
+      "filtered_decorative_count": 1,
+      "status": "PASS"
+    }
+  },
+  "visual_assets": {
+    "approved_scientific": [
+      {
+        "asset_id": "lec_04_fig_01.png",
+        "file_path": "assets/lec_04_fig_01.png",
+        "originating_slide": 16,
+        "target_slide": 16,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 16 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 16.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 16",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_02.png",
+        "file_path": "assets/lec_04_fig_02.png",
+        "originating_slide": 13,
+        "target_slide": 13,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 13 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 13.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 13",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_03.png",
+        "file_path": "assets/lec_04_fig_03.png",
+        "originating_slide": 18,
+        "target_slide": 18,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 18 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 18.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 18",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_04.jpg",
+        "file_path": "assets/lec_04_fig_04.jpg",
+        "originating_slide": 4,
+        "target_slide": 4,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 4 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 4.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 4",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_05.png",
+        "file_path": "assets/lec_04_fig_05.png",
+        "originating_slide": 12,
+        "target_slide": 12,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 12 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 12.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 12",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_06.png",
+        "file_path": "assets/lec_04_fig_06.png",
+        "originating_slide": 5,
+        "target_slide": 5,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 5 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 5.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 5",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_07.png",
+        "file_path": "assets/lec_04_fig_07.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 1 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 1.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 1",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_08.png",
+        "file_path": "assets/lec_04_fig_08.png",
+        "originating_slide": 9,
+        "target_slide": 9,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 9 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 9.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 9",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_09.png",
+        "file_path": "assets/lec_04_fig_09.png",
+        "originating_slide": 7,
+        "target_slide": 7,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 7 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 7.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 7",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_10.png",
+        "file_path": "assets/lec_04_fig_10.png",
+        "originating_slide": 19,
+        "target_slide": 19,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 19 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 19.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 19",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_11.png",
+        "file_path": "assets/lec_04_fig_11.png",
+        "originating_slide": 8,
+        "target_slide": 8,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 8 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 8.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 8",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_12.png",
+        "file_path": "assets/lec_04_fig_12.png",
+        "originating_slide": 2,
+        "target_slide": 2,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 2 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 2.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 2",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_13.jpeg",
+        "file_path": "assets/lec_04_fig_13.jpeg",
+        "originating_slide": 11,
+        "target_slide": 11,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 11 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 11.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 11",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_04_fig_14.jpg",
+        "file_path": "assets/lec_04_fig_14.jpg",
+        "originating_slide": 10,
+        "target_slide": 10,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 10 (Factors Affecting Absorption Spectra & Chromophore/Auxochrome Systems)",
+        "technical_caption": "Core analytical schematic supporting Slide 10.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 10",
+        "formulas": [
+          "\\lambda_{\\max} = \\text{Base Value} + \\sum \\text{Substituent Increments} \\quad (\\text{Woodward-Fieser Rules})"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-hue.png",
+        "file_path": "assets/logo-hue.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Horus University in Egypt (HUE) Official Crest",
+        "technical_caption": "Official university emblem for institutional slide branding (#002147 / #FFB81C).",
+        "ocr_transcript": "HORUS UNIVERSITY - EGYPT, HUE",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-pharmacy.png",
+        "file_path": "assets/logo-pharmacy.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Faculty of Pharmacy Official Seal",
+        "technical_caption": "Faculty of Pharmacy official emblem for accredited slide deck title.",
+        "ocr_transcript": "FACULTY OF PHARMACY, HORUS UNIVERSITY",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      }
+    ],
+    "filtered_decorative": [
+      {
+        "asset_id": "lec_04_fig_01_decor.jpeg",
+        "file_path": "assets/lec_04_fig_01_decor.jpeg",
+        "originating_slide": 1,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Decorative graphic on Slide 1",
+        "filtering_rationale": "Non-instructional slide background or decorative graphic.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      }
+    ]
+  },
+  "sources": [
+    "Instrumental_Course_Specification_final_2019-2020.docx.md [COURSE_SPEC]",
+    "blueprint-PC_206_Instrumental_Analysis_Bachelor_Pharmacy_2020.docx.md [ASSESSMENT_BLUEPRINT]",
+    "Question_Bank_Calibrated_PC206.md [QUESTION_BANK]",
+    "LEC_4.pptx.md [LEGACY_SLIDES]",
+    "Principles of Instrumental Analysis, Skoog et al., 6th ed. [TEXTBOOK]",
+    "British Pharmacopoeia (BP) & United States Pharmacopeia (USP) [PHARMACOPOEIA]"
+  ]
+}

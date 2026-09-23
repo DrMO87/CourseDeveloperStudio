@@ -33,8 +33,8 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
             MascotConfig = JsonSerializer.Deserialize<MascotConfig>(reader.GetString(reader.GetOrdinal("mascot_config")), _jsonOptions) ?? new(),
             BoundaryTerms = JsonSerializer.Deserialize<BoundaryTermsConfig>(reader.GetString(reader.GetOrdinal("boundary_terms")), _jsonOptions) ?? new(),
             QualityGuidelines = JsonSerializer.Deserialize<QualityGuidelinesConfig>(reader.GetString(reader.GetOrdinal("quality_guidelines")), _jsonOptions) ?? new(),
-            AssetCitationPattern = reader.GetString(reader.GetOrdinal("asset_citation_pattern")),
-            EvidenceMarkerPattern = reader.GetString(reader.GetOrdinal("evidence_marker_pattern")),
+            AssetCitationPattern = reader.IsDBNull(reader.GetOrdinal("asset_citation_pattern")) ? string.Empty : reader.GetString(reader.GetOrdinal("asset_citation_pattern")),
+            EvidenceMarkerPattern = reader.IsDBNull(reader.GetOrdinal("evidence_marker_pattern")) ? string.Empty : reader.GetString(reader.GetOrdinal("evidence_marker_pattern")),
             CreatedAt = reader.GetDateTime(reader.GetOrdinal("created_at")),
             UpdatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"))
         };
@@ -140,6 +140,7 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
         await using var conn = await _connectionFactory.OpenAsync();
         using var cmd = conn.CreateCommand(@"
             UPDATE organizations SET
+                slug = @slug,
                 name = @name,
                 institution_type = @institution_type::institution_type,
                 logo_url = @logo_url,
@@ -155,6 +156,7 @@ public class NpgsqlOrganizationRepository : IOrganizationRepository
             RETURNING *");
 
         cmd.Parameters.AddWithValue("id", organization.Id);
+        cmd.Parameters.AddWithValue("slug", organization.Slug);
         cmd.Parameters.AddWithValue("name", organization.Name);
         cmd.Parameters.AddWithValue("institution_type", organization.InstitutionType.ToString());
         cmd.Parameters.AddWithValue("logo_url", organization.LogoUrl ?? (object)DBNull.Value);

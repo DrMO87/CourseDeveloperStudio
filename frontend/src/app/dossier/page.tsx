@@ -11,7 +11,10 @@ import {
   Sparkles, 
   UploadCloud,
   ChevronDown,
-  ArrowRight
+  ArrowRight,
+  Bot,
+  Zap,
+  CheckCircle2
 } from 'lucide-react';
 import type { CourseProject, Organization } from '@/lib/types';
 import { fetchProjects, fetchOrganizations } from '@/lib/supabase';
@@ -27,6 +30,8 @@ function DossierPageContent() {
   const [projects, setProjects] = useState<CourseProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<CourseProject | null>(null);
   const [loading, setLoading] = useState(true);
+  const [llmVerified, setLlmVerified] = useState(false);
+  const [verifiedModel, setVerifiedModel] = useState('');
 
   useEffect(() => {
     async function loadData() {
@@ -45,6 +50,11 @@ function DossierPageContent() {
 
         const targetProj = projList.find(p => p.id === queryProjectId) || (projList.length > 0 ? projList[0] : null);
         setSelectedProject(targetProj);
+
+        if (typeof window !== 'undefined') {
+          setLlmVerified(localStorage.getItem('cds_llm_verified') === 'true');
+          setVerifiedModel(localStorage.getItem('cds_verified_model') || 'Default Swarm');
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -52,6 +62,15 @@ function DossierPageContent() {
       }
     }
     loadData();
+
+    const handleStorageUpdate = () => {
+      if (typeof window !== 'undefined') {
+        setLlmVerified(localStorage.getItem('cds_llm_verified') === 'true');
+        setVerifiedModel(localStorage.getItem('cds_verified_model') || 'Default Swarm');
+      }
+    };
+    window.addEventListener('cds_storage_updated', handleStorageUpdate);
+    return () => window.removeEventListener('cds_storage_updated', handleStorageUpdate);
   }, [queryProjectId]);
 
   const handleOrgChange = async (orgId: string) => {
@@ -74,7 +93,7 @@ function DossierPageContent() {
         currentStep="DOSSIER"
         projectId={selectedProject?.id}
         projectName={selectedProject?.name}
-        progressPercent={66}
+        progressPercent={75}
       />
 
       {/* Header Bar with Project Selector */}
@@ -137,7 +156,7 @@ function DossierPageContent() {
               href={`/dossier/validate?projectId=${selectedProject.id}`}
               className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white dark:text-primary-900 font-display font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition"
             >
-              <span>Validate Content &rarr; Studio Swarm</span>
+              <span>Next: Validate Content</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           )}
@@ -146,7 +165,7 @@ function DossierPageContent() {
 
       {/* Main Dossier Hub Component */}
       {selectedProject ? (
-        <CourseDossierHub project={selectedProject} />
+        <CourseDossierHub project={selectedProject} organization={selectedOrg || undefined} />
       ) : (
         <div className="py-16 text-center bg-[#001530]/60 rounded-3xl border border-white/10 p-8 space-y-4">
           <BookOpen className="w-12 h-12 text-gold-400/40 mx-auto" />

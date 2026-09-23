@@ -1,0 +1,298 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "session_code": "Lec 07",
+  "title": "Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption)",
+  "course": {
+    "code": "PC 206",
+    "title": "Instrumental Analysis",
+    "institution": "Horus University in Egypt (HUE)",
+    "faculty": "Faculty of Pharmacy",
+    "department": "Pharmaceutical Chemistry",
+    "academic_year": "2019/2020",
+    "coordinator": "Dr. Mahmoud Medhat Elkhoudary",
+    "head_of_department": "Prof. Dr. Magda Abd El-Azeez"
+  },
+  "pedagogy": {
+    "module": "Chromatography & Separation Sciences",
+    "module_weight": "50%",
+    "exam_mark_weight": "3.75 - 7.5 Marks",
+    "duration_minutes": 60,
+    "targeted_ilos": [
+      "a1",
+      "a2",
+      "b1"
+    ],
+    "core_lab_linkage": "Chromatography General Introduction & Capillary Spotting",
+    "governing_formulas": [
+      "K_D = \\frac{C_S}{C_M} \\quad",
+      "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+    ],
+    "cognitive_progression": {
+      "level_1_remember": "Define fundamental laws, terminology, and bounds of Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption).",
+      "level_2_understand": "Explain underlying physical mechanisms, instrumentation, and energy transitions.",
+      "level_3_apply": "Solve quantitative analytical calculations using $$K_D = \\frac{C_S}{C_M} \\quad | \\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}$$.",
+      "level_4_analyze": "Interpret spectral shifts, evaluate deviations, and troubleshoot analytical anomalies."
+    }
+  },
+  "quality_gates": {
+    "language": {
+      "policy": "100% English Academic Delivery",
+      "arabic_tolerance": 0.0,
+      "status": "PASS"
+    },
+    "brand_palette": {
+      "primary_navy": "#002147",
+      "accent_gold": "#FFB81C",
+      "pure_white": "#FFFFFF",
+      "prohibited_colors": [
+        "#FF0000",
+        "#990000"
+      ],
+      "status": "PASS"
+    },
+    "pedagogical_boundary": {
+      "retained_scope": "Historical discovery (Tswett plant pigments), definition and IUPAC classification of chromatographic methods (by physical geometry: planar vs column; by mobile/stationary phases: LLC, LSC, GLC, GSC; by separation mechanism: adsorption, partition, ion-exchange, size-exclusion/gel filtration, affinity), retention terminology (retention time tR, dead time tM, adjusted retention time tR').",
+      "non_forced_clinical_rationale": "Examines theoretical separation physics, partition coefficients, adsorption isotherms, and thermodynamic distribution constants. No artificial clinical trials forced.",
+      "excluded_scope": "Supercritical fluid chromatography.",
+      "status": "PASS"
+    },
+    "vision_filtering": {
+      "policy": "Separate core educational diagrams from decorative slide artifacts",
+      "approved_assets_count": 15,
+      "filtered_decorative_count": 0,
+      "status": "PASS"
+    }
+  },
+  "visual_assets": {
+    "approved_scientific": [
+      {
+        "asset_id": "lec_07_fig_01.png",
+        "file_path": "assets/lec_07_fig_01.png",
+        "originating_slide": 3,
+        "target_slide": 3,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 3 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 3.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 3",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_02.png",
+        "file_path": "assets/lec_07_fig_02.png",
+        "originating_slide": 9,
+        "target_slide": 9,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 9 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 9.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 9",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_03.png",
+        "file_path": "assets/lec_07_fig_03.png",
+        "originating_slide": 11,
+        "target_slide": 11,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 11 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 11.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 11",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_04.png",
+        "file_path": "assets/lec_07_fig_04.png",
+        "originating_slide": 8,
+        "target_slide": 8,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 8 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 8.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 8",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_05.png",
+        "file_path": "assets/lec_07_fig_05.png",
+        "originating_slide": 8,
+        "target_slide": 8,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 8 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 8.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 8",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_06.png",
+        "file_path": "assets/lec_07_fig_06.png",
+        "originating_slide": 11,
+        "target_slide": 11,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 11 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 11.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 11",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_07.png",
+        "file_path": "assets/lec_07_fig_07.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 1 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 1.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 1",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_08.png",
+        "file_path": "assets/lec_07_fig_08.png",
+        "originating_slide": 4,
+        "target_slide": 4,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 4 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 4.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 4",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_09.png",
+        "file_path": "assets/lec_07_fig_09.png",
+        "originating_slide": 7,
+        "target_slide": 7,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 7 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 7.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 7",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_10.png",
+        "file_path": "assets/lec_07_fig_10.png",
+        "originating_slide": 2,
+        "target_slide": 2,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 2 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 2.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 2",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_11.jpeg",
+        "file_path": "assets/lec_07_fig_11.jpeg",
+        "originating_slide": 11,
+        "target_slide": 11,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 11 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 11.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 11",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_12.jpg",
+        "file_path": "assets/lec_07_fig_12.jpg",
+        "originating_slide": 5,
+        "target_slide": 5,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 5 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 5.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 5",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_07_fig_13.jpeg",
+        "file_path": "assets/lec_07_fig_13.jpeg",
+        "originating_slide": 8,
+        "target_slide": 8,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 8 (Midterm Examination & Fundamentals of Chromatography (Partition, Adsorption))",
+        "technical_caption": "Core analytical schematic supporting Slide 8.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 8",
+        "formulas": [
+          "K_D = \\frac{C_S}{C_M} \\quad",
+          "\\quad k' = \\frac{K_D V_S}{V_M} = \\frac{t_R - t_M}{t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-hue.png",
+        "file_path": "assets/logo-hue.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Horus University in Egypt (HUE) Official Crest",
+        "technical_caption": "Official university emblem for institutional slide branding (#002147 / #FFB81C).",
+        "ocr_transcript": "HORUS UNIVERSITY - EGYPT, HUE",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-pharmacy.png",
+        "file_path": "assets/logo-pharmacy.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Faculty of Pharmacy Official Seal",
+        "technical_caption": "Faculty of Pharmacy official emblem for accredited slide deck title.",
+        "ocr_transcript": "FACULTY OF PHARMACY, HORUS UNIVERSITY",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      }
+    ],
+    "filtered_decorative": []
+  },
+  "sources": [
+    "Instrumental_Course_Specification_final_2019-2020.docx.md [COURSE_SPEC]",
+    "blueprint-PC_206_Instrumental_Analysis_Bachelor_Pharmacy_2020.docx.md [ASSESSMENT_BLUEPRINT]",
+    "Question_Bank_Calibrated_PC206.md [QUESTION_BANK]",
+    "LEC_7.pptx.md [LEGACY_SLIDES]",
+    "Principles of Instrumental Analysis, Skoog et al., 6th ed. [TEXTBOOK]",
+    "British Pharmacopoeia (BP) & United States Pharmacopeia (USP) [PHARMACOPOEIA]"
+  ]
+}

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { BookOpen, FolderArchive, Layers, Check } from 'lucide-react';
+import { BookOpen, FolderArchive, Layers, Check, FileCheck2, Cpu } from 'lucide-react';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -10,7 +10,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export type WorkflowStep = 'PROJECTS' | 'DOSSIER' | 'STUDIO';
+export type WorkflowStep = 'PROJECTS' | 'DOSSIER' | 'VALIDATE' | 'LLM_MATRIX' | 'STUDIO' | 'ORGANIZATIONS';
 
 interface Props {
   currentStep: WorkflowStep;
@@ -24,8 +24,8 @@ const STEPS = [
   {
     key: 'PROJECTS' as WorkflowStep,
     stepNum: 1,
-    label: 'Curriculum Project',
-    sublabel: 'Define Course',
+    label: 'Curriculum Projects',
+    sublabel: 'Define Scope & Courses',
     href: '/projects',
     icon: BookOpen,
   },
@@ -33,14 +33,30 @@ const STEPS = [
     key: 'DOSSIER' as WorkflowStep,
     stepNum: 2,
     label: 'Course Dossier',
-    sublabel: 'Ingest Specs',
+    sublabel: 'Ingest Specs & Slides',
     href: '/dossier',
     icon: FolderArchive,
   },
   {
-    key: 'STUDIO' as WorkflowStep,
+    key: 'VALIDATE' as WorkflowStep,
     stepNum: 3,
-    label: 'Studio Dashboard',
+    label: 'Validate Content',
+    sublabel: 'Audit Text & Diagrams',
+    href: '/dossier/validate',
+    icon: FileCheck2,
+  },
+  {
+    key: 'LLM_MATRIX' as WorkflowStep,
+    stepNum: 4,
+    label: 'LLM Model Matrix',
+    sublabel: 'Assign Models & Local LM',
+    href: '/matrix',
+    icon: Cpu,
+  },
+  {
+    key: 'STUDIO' as WorkflowStep,
+    stepNum: 5,
+    label: 'Studio Swarm',
     sublabel: 'Synthesize & Generate',
     href: '/',
     icon: Layers,
@@ -53,7 +69,10 @@ export function WorkflowProgressBar({
   projectName,
   completedSteps = [],
 }: Props) {
-  const currentIdx = STEPS.findIndex((s) => s.key === currentStep);
+  // Map secondary or legacy steps to the 5 core steps gracefully
+  let effectiveKey: WorkflowStep = currentStep;
+  if (currentStep === 'ORGANIZATIONS') effectiveKey = 'PROJECTS';
+  const currentIdx = Math.max(0, STEPS.findIndex((s) => s.key === effectiveKey));
 
   return (
     <div className="w-full bg-white dark:bg-[#001530]/90 border border-slate-200 dark:border-white/10 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-xl backdrop-blur-xl mb-6">
@@ -68,7 +87,7 @@ export function WorkflowProgressBar({
              </p>
           ) : (
             <p className="text-sm text-slate-500 dark:text-white/60 mt-1">
-              Complete each step sequentially to launch your course
+              End-to-end curriculum engineering pipeline from projects to Studio Swarm generation
             </p>
           )}
         </div>
@@ -82,17 +101,17 @@ export function WorkflowProgressBar({
 
       <div className="relative">
         {/* Background Connecting Line */}
-        <div className="absolute top-6 left-[16.66%] right-[16.66%] h-1 bg-slate-100 dark:bg-white/10 rounded-full -z-10 transform -translate-y-1/2" />
+        <div className="absolute top-6 left-[10%] right-[10%] h-1 bg-slate-100 dark:bg-white/10 rounded-full -z-10 transform -translate-y-1/2" />
         
         {/* Dynamic Progress Line */}
         <div 
-          className="absolute top-6 left-[16.66%] h-1 bg-brand-gold dark:bg-gold-500 rounded-full transition-all duration-500 ease-in-out -z-10 transform -translate-y-1/2"
-          style={{ width: `calc(${currentIdx / (STEPS.length - 1)} * 66.66%)` }}
+          className="absolute top-6 left-[10%] h-1 bg-brand-gold dark:bg-gold-500 rounded-full transition-all duration-500 ease-in-out -z-10 transform -translate-y-1/2"
+          style={{ width: `calc(${currentIdx / (STEPS.length - 1)} * 80%)` }}
         />
 
         <div className="flex justify-between items-start">
           {STEPS.map((step, idx) => {
-            const isActive = step.key === currentStep;
+            const isActive = step.key === effectiveKey;
             const isDone = completedSteps.includes(step.key) || idx < currentIdx;
             const Icon = step.icon;
             const targetHref = projectId ? `${step.href}?projectId=${projectId}` : step.href;
@@ -101,7 +120,7 @@ export function WorkflowProgressBar({
               <Link
                 key={step.key}
                 href={targetHref}
-                className="group flex flex-col items-center w-1/3 text-center relative focus:outline-none"
+                className="group flex flex-col items-center w-1/5 text-center relative focus:outline-none"
               >
                 {/* Step Circle */}
                 <div 

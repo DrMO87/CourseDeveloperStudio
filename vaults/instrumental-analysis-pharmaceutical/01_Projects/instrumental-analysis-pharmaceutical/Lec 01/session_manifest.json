@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "session_code": "Lec 01",
+  "title": "Electromagnetic Radiation (EMR) & Molecular UV/Vis Absorption Principles",
+  "course": {
+    "code": "PC 206",
+    "title": "Instrumental Analysis",
+    "institution": "Horus University in Egypt (HUE)",
+    "faculty": "Faculty of Pharmacy",
+    "department": "Pharmaceutical Chemistry",
+    "academic_year": "2019/2020",
+    "coordinator": "Dr. Mahmoud Medhat Elkhoudary",
+    "head_of_department": "Prof. Dr. Magda Abd El-Azeez"
+  },
+  "pedagogy": {
+    "module": "Optical Spectroscopy & Photometry",
+    "module_weight": "50%",
+    "exam_mark_weight": "3.75 - 7.5 Marks",
+    "duration_minutes": 60,
+    "targeted_ilos": [
+      "a1",
+      "a2",
+      "b1"
+    ],
+    "core_lab_linkage": "Spectrophotometry General Introduction & Calibration",
+    "governing_formulas": [
+      "E = h \\nu = \\frac{hc}{\\lambda} = hc \\bar{\\nu} \\quad",
+      "\\quad c = \\lambda \\nu"
+    ],
+    "cognitive_progression": {
+      "level_1_remember": "Define fundamental laws, terminology, and bounds of Electromagnetic Radiation (EMR) & Molecular UV/Vis Absorption Principles.",
+      "level_2_understand": "Explain underlying physical mechanisms, instrumentation, and energy transitions.",
+      "level_3_apply": "Solve quantitative analytical calculations using $$E = h \\nu = \\frac{hc}{\\lambda} = hc \\bar{\\nu} \\quad | \\quad c = \\lambda \\nu$$.",
+      "level_4_analyze": "Interpret spectral shifts, evaluate deviations, and troubleshoot analytical anomalies."
+    }
+  },
+  "quality_gates": {
+    "language": {
+      "policy": "100% English Academic Delivery",
+      "arabic_tolerance": 0.0,
+      "status": "PASS"
+    },
+    "brand_palette": {
+      "primary_navy": "#002147",
+      "accent_gold": "#FFB81C",
+      "pure_white": "#FFFFFF",
+      "prohibited_colors": [
+        "#FF0000",
+        "#990000"
+      ],
+      "status": "PASS"
+    },
+    "pedagogical_boundary": {
+      "retained_scope": "Wave-particle duality, Planck's equation, electromagnetic spectrum boundaries, electronic transitions (sigma->sigma*, n->sigma*, pi->pi*, n->pi*), chromophore & auxochrome definitions, absorption shifts (bathochromic, hypsochromic, hyperchromic, hypochromic).",
+      "non_forced_clinical_rationale": "This session focuses purely on fundamental quantum transitions and wave-particle physical laws of EMR. Clinical drug pharmacokinetics and patient therapeutics are strictly NOT forced into this foundational physics/optics lecture, maintaining rigorous analytical purity.",
+      "excluded_scope": "Instrument engineering details (deferred to Lec 3), quantitative calibration plots (deferred to Lec 2), non-examinable historical anecdotes.",
+      "status": "PASS"
+    },
+    "vision_filtering": {
+      "policy": "Separate core educational diagrams from decorative slide artifacts",
+      "approved_assets_count": 8,
+      "filtered_decorative_count": 4,
+      "status": "PASS"
+    }
+  },
+  "visual_assets": {
+    "approved_scientific": [
+      {
+        "asset_id": "lec_01_fig_02.jpeg",
+        "file_path": "assets/lec_01_fig_02.jpeg",
+        "originating_slide": 6,
+        "target_slide": 6,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Electromagnetic Radiation Spectrum & Analytical Optical Regions",
+        "technical_caption": "Comprehensive Electromagnetic Radiation Spectrum mapping frequency (\\nu in s^{-1}) and wavelength (\\lambda in nm) across gamma-ray, X-ray, ultraviolet, visible (400\u2013700 nm), infrared, microwave, and radio bands with associated quantum transition mechanisms.",
+        "ocr_transcript": "Increasing Frequency (\u03bd) \u2190, Increasing Wavelength (\u03bb) \u2192, \u03bd (s\u207b\u00b9) 10\u00b2\u2074 - 10\u2070, \u03bb (nm) 10\u207b\u00b9\u2076 - 10\u2078, \u03b3-rays, X-rays, UV, Visible Spectrum (400-700 nm), IR, Microwave, Radio waves. Types of Atomic & Molecular Transitions: \u03b3-rays: nuclear; X-rays: core-level electrons; Ultraviolet (UV): valence electrons; Visible (Vis): valence electrons; Infrared (IR): molecular vibrations; Microwave: molecular rotations; Radio waves: nuclear spin.",
+        "formulas": [
+          "c = \\lambda \\nu",
+          "E = h \\nu = \\frac{hc}{\\lambda} = hc \\bar{\\nu}",
+          "\\lambda_{\\text{Vis}} \\in [400, 700]\\,\\text{nm}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_01_fig_05.jpeg",
+        "file_path": "assets/lec_01_fig_05.jpeg",
+        "originating_slide": 4,
+        "target_slide": 4,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Orthogonal Electric and Magnetic Wave Vectors of EMR",
+        "technical_caption": "Transverse electromagnetic wave propagation illustrating mutually perpendicular electric field vector (\\vec{E}, red vertical) and magnetic field vector (\\vec{B}, blue horizontal), oscillating in phase and orthogonal to the direction of propagation at velocity c = 3.00 \u00d7 10^8 m/s.",
+        "ocr_transcript": "electric field, magnetic field, direction of propagation, A (amplitude), \u03bb (wavelength)",
+        "formulas": [
+          "c = \\lambda \\nu = 3.00 \\times 10^8\\,\\text{m/s}",
+          "\\vec{E} \\perp \\vec{B} \\perp \\vec{k}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_01_fig_04.png",
+        "file_path": "assets/lec_01_fig_04.png",
+        "originating_slide": 15,
+        "target_slide": 15,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Molecular UV/Vis Absorption Curve and \\lambda_{\\max} Determination",
+        "technical_caption": "Molecular UV/Vis absorption spectrum plotting Absorbance (A, dimensionless) vs. Wavelength (\\lambda, 325\u2013525 nm). Symmetrical Gaussian absorption band highlights the absorption maximum (\\lambda_{\\max} \\approx 395 nm) representing the optimal wavelength for qualitative identification and quantitative sensitivity.",
+        "ocr_transcript": "Absorbance (No Unit), 0 to 0.20, 325 to 525 nm, Wavelength (nm), \u03bbmax",
+        "formulas": [
+          "A = f(\\lambda)",
+          "\\lambda_{\\max} \\implies \\left(\\frac{dA}{d\\lambda}\\right)_{\\lambda = \\lambda_{\\max}} = 0",
+          "A = \\varepsilon b c"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_01_fig_06.jpeg",
+        "file_path": "assets/lec_01_fig_06.jpeg",
+        "originating_slide": 16,
+        "target_slide": 16,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Radiation Attenuation, Transmittance (T), and Solvent Blank Subtraction",
+        "technical_caption": "Dual-beam optical schematic comparing (a) analyte sample measurement and (b) solvent blank subtraction. Incident radiant power (P_0) passes through sample cuvette of pathlength b, transmitting attenuated power (P_T). Blank subtraction isolates analyte attenuation from solvent absorption, reflection, and cuvette wall scatter.",
+        "ocr_transcript": "(a) Light Source P\u2080 \u2192 sample cuvette \u2192 P_T \u2192 detector/eye; (b) Light Source P\u2080 \u2192 blank cuvette \u2192 P\u2080 \u2192 detector/eye",
+        "formulas": [
+          "T = \\frac{P_T}{P_0}",
+          "\\%T = \\frac{P_T}{P_0} \\times 100",
+          "A = -\\log_{10} T = \\log_{10}\\left(\\frac{P_0}{P_T}\\right) = 2 - \\log_{10}(\\%T) = \\varepsilon b c"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_01_fig_09.jpeg",
+        "file_path": "assets/lec_01_fig_09.jpeg",
+        "originating_slide": 19,
+        "target_slide": 19,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Beer-Lambert Law Calibration Linearity & Non-Linear Deviations",
+        "technical_caption": "Beer-Lambert law calibration curve displaying ideal linear response (A = \\varepsilon b c) alongside real chemical and instrumental deviations (positive deviation bending upward, negative deviation flattening at c > 0.01 M and chemical equilibrium shift).",
+        "ocr_transcript": "Absorbance, Concentration, Ideal Beer's Law Linearity, Positive Deviation, Negative Deviation, Chemical Equilibrium Shift",
+        "formulas": [
+          "A = \\varepsilon b c \\quad (c < 0.01\\,\\text{M})",
+          "\\text{Cr}_2\\text{O}_7^{2-} + \\text{H}_2\\text{O} \\rightleftharpoons 2\\text{H}^+ + 2\\text{CrO}_4^{2-}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_01_fig_10.png",
+        "file_path": "assets/lec_01_fig_10.png",
+        "originating_slide": 25,
+        "target_slide": 25,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Substituent and Solvent Spectral Shifts (Bathochromic / Hypsochromic / Hyperchromic / Hypochromic)",
+        "technical_caption": "Four-quadrant diagram of absorption band modifications: Bathochromic shift (red shift, \\lambda \\uparrow), Hypsochromic shift (blue shift, \\lambda \\downarrow), Hyperchromic effect (absorbance intensity \\uparrow, \\varepsilon \\uparrow), and Hypochromic effect (absorbance intensity \\downarrow, \\varepsilon \\downarrow).",
+        "ocr_transcript": "1. Bathochromic shift (red shift), 2. Hypsochromic shift (blue shift), 3. Hyperchromic effect, 4. Hypochromic effect",
+        "formulas": [
+          "\\Delta \\lambda > 0 \\implies \\text{Bathochromic}",
+          "\\Delta \\lambda < 0 \\implies \\text{Hypsochromic}",
+          "\\Delta \\varepsilon > 0 \\implies \\text{Hyperchromic}",
+          "\\Delta \\varepsilon < 0 \\implies \\text{Hypochromic}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-hue.png",
+        "file_path": "assets/logo-hue.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Horus University in Egypt (HUE) Official Crest",
+        "technical_caption": "Institutional header insignia for brand compliance (#002147 / #FFB81C).",
+        "ocr_transcript": "HORUS UNIVERSITY - EGYPT, HUE",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-pharmacy.png",
+        "file_path": "assets/logo-pharmacy.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Faculty of Pharmacy Official Seal",
+        "technical_caption": "Faculty of Pharmacy emblem for academic accreditation compliance.",
+        "ocr_transcript": "FACULTY OF PHARMACY, HORUS UNIVERSITY",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      }
+    ],
+    "filtered_decorative": [
+      {
+        "asset_id": "lec_01_fig_01.png",
+        "file_path": "assets/lec_01_fig_01.png",
+        "originating_slide": 30,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Abstract floral splash vector artwork on closing slide 30",
+        "filtering_rationale": "Decorative background art on closing slide; zero educational or analytical content.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      },
+      {
+        "asset_id": "lec_01_fig_03.png",
+        "file_path": "assets/lec_01_fig_03.png",
+        "originating_slide": 28,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Multicolor geometric polygon brain graphic on slide 28 ('THINK')",
+        "filtering_rationale": "Stock motivational clip-art; non-instructional, non-analytical.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      },
+      {
+        "asset_id": "lec_01_fig_07.png",
+        "file_path": "assets/lec_01_fig_07.png",
+        "originating_slide": 30,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Decorative leafy vine clip-art on closing slide 30",
+        "filtering_rationale": "Non-instructional slide adornment; zero pedagogical relevance.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      },
+      {
+        "asset_id": "lec_01_fig_08.png",
+        "file_path": "assets/lec_01_fig_08.png",
+        "originating_slide": 1,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Legacy raster Horus Training Centre logo on slide 1",
+        "filtering_rationale": "Superseded by high-res Brand Identity Contract vector emblems (logo-hue.png & logo-pharmacy.png).",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      }
+    ]
+  },
+  "sources": [
+    "Instrumental_Course_Specification_final_2019-2020.docx.md [COURSE_SPEC]",
+    "blueprint-PC_206_Instrumental_Analysis_Bachelor_Pharmacy_2020.docx.md [ASSESSMENT_BLUEPRINT]",
+    "Question_Bank_Calibrated_PC206.md [QUESTION_BANK]",
+    "LEC_1.pptx.md [LEGACY_SLIDES]",
+    "Principles of Instrumental Analysis, Skoog et al., 6th ed. [TEXTBOOK]",
+    "British Pharmacopoeia (BP) & United States Pharmacopeia (USP) [PHARMACOPOEIA]"
+  ]
+}

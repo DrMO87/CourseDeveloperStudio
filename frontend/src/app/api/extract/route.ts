@@ -6,9 +6,6 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const AdmZip = require('adm-zip');
-    const officeParser = require('officeparser');
-    
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const projectSlug = formData.get('projectSlug') as string;
@@ -20,31 +17,76 @@ export async function POST(req: NextRequest) {
     let extractedText = '';
     let assetPaths: string[] = [];
 
-    if (projectSlug && (ext === 'pptx' || ext === 'docx')) {
-      const assetDir = path.join(process.cwd(), '..', 'vaults', projectSlug, '01_Projects', projectSlug, 'Dossier', '_assets');
-      try {
-        const zip = new AdmZip(buffer);
-        fs.mkdirSync(assetDir, { recursive: true });
-        zip.getEntries().forEach((zipEntry: any) => {
-          if (zipEntry.entryName.startsWith('ppt/media/') || zipEntry.entryName.startsWith('word/media/')) {
-            const dest = path.join(assetDir, path.basename(zipEntry.entryName));
-            fs.writeFileSync(dest, zipEntry.getData());
-            assetPaths.push(dest);
+    const VAULT_ROOT = process.env.VAULT_ROOT ? path.resolve(process.env.VAULT_ROOT) : path.resolve(process.cwd(), '..');
+
+    if (projectSlug) {
+      const candidateDirs = [
+        path.join(VAULT_ROOT, 'vaults', projectSlug, '01_Projects', projectSlug, 'Dossier', '_assets'),
+        path.join('/app/vaults', projectSlug, '01_Projects', projectSlug, 'Dossier', '_assets'),
+        path.join(process.cwd(), 'vaults', projectSlug, '01_Projects', projectSlug, 'Dossier', '_assets')
+      ];
+
+      for (const assetDir of candidateDirs) {
+        try {
+          fs.mkdirSync(assetDir, { recursive: true });
+          const rawDest = path.join(assetDir, path.basename(file.name));
+          fs.writeFileSync(rawDest, buffer);
+          assetPaths.push(rawDest);
+
+          if (ext === 'pptx' || ext === 'docx') {
+            try {
+              const AdmZip = require('adm-zip');
+              const zip = new AdmZip(buffer);
+              zip.getEntries().forEach((zipEntry: any) => {
+                if (zipEntry.entryName.startsWith('ppt/media/') || zipEntry.entryName.startsWith('word/media/')) {
+                  const dest = path.join(assetDir, path.basename(zipEntry.entryName));
+                  fs.writeFileSync(dest, zipEntry.getData());
+                  assetPaths.push(dest);
+                }
+              });
+            } catch (zipErr) {
+              console.warn('[Extract] Zip media extraction warning:', zipErr);
+            }
           }
-        });
-      } catch (err) {
-        console.error('Image extraction error', err);
+          break;
+        } catch (err) {
+          console.warn('[Extract] Asset save warning for', assetDir, err);
+        }
       }
     }
 
     if (ext === 'pdf') {
-      const pdfParse = require('pdf-parse');
-      const data = await pdfParse(buffer);
-      extractedText = data.text;
+      try {
+        const officeParser = require('officeparser');
+        const parseRes = await officeParser.parseOffice(buffer, { fileType: 'pdf' });
+        extractedText = typeof parseRes?.toText === 'function' ? parseRes.toText() : (parseRes?.content || String(parseRes || ''));
+      } catch (pdfOfficeErr) {
+        try {
+          const pdfParsePkg = require('pdf-parse');
+          const PDFClass = pdfParsePkg.PDFParse || pdfParsePkg.default || pdfParsePkg;
+          if (typeof PDFClass === 'function') {
+            const parser = new PDFClass();
+            const data = await parser.parse(buffer);
+            extractedText = data?.text || '';
+          }
+        } catch (pdfErr) {
+          console.warn('[Extract] PDF parse fallback:', pdfErr);
+          extractedText = buffer.toString('latin1').replace(/[^\x20-\x7E\n\r\t]/g, ' ').replace(/\s+/g, ' ');
+        }
+      }
     } else if (['pptx', 'docx', 'xlsx', 'odt', 'odp', 'ods'].includes(ext || '')) {
-      extractedText = await officeParser.parseOffice(buffer);
+      try {
+        const officeParser = require('officeparser');
+        const parseRes = await officeParser.parseOffice(buffer, { fileType: ext });
+        extractedText = typeof parseRes?.toText === 'function' ? parseRes.toText() : (parseRes?.content || String(parseRes || ''));
+      } catch (officeErr) {
+        console.warn('[Extract] Office parse fallback:', officeErr);
+        extractedText = `Attached File: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+      }
+    } else if (['txt', 'md', 'markdown', 'json', 'csv', 'tsv', 'yaml', 'yml', 'html', 'xml', 'tex', 'py', 'c', 'cpp', 'h'].includes(ext || '')) {
+      extractedText = buffer.toString('utf8');
     } else {
-      return NextResponse.json({ success: false, error: 'Unsupported file type' }, { status: 400 });
+      extractedText = `Attached File: ${file.name} (${Math.round(file.size / 1024)} KB)`;
     }
 
     if (assetPaths.length > 0) {
@@ -53,6 +95,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, text: extractedText, assets: assetPaths.length });
   } catch (err: any) {
+    console.error('[Extract] Upload extraction error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

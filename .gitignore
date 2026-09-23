@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 **/node_modules/
 .pnp
 .pnp.js
@@ -6,6 +6,7 @@
 # Next.js build output
 **/.next/
 **/out/
+*.tsbuildinfo
 
 # .NET build output
 **/bin/
@@ -23,7 +24,10 @@
 .nlm-edge-profile/
 
 # Secrets & Local environment
+.env
+.env.*
 .env*.local
+backend/.env
 
 # Python cache & virtual environments
 **/__pycache__/
@@ -40,6 +44,15 @@ logs/
 # OS metadata
 .DS_Store
 Thumbs.db
-
-# Large presentation media files
+# Large presentation & vault media files
 MY COURSE TEMPLATE/*.pptx
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.glb
+*.gltf
+*.wdp
+*.emf
+vaults/**/_assets/
+

@@ -1,0 +1,414 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "session_code": "Lec 09",
+  "title": "Column Chromatography & Mobile/Stationary Phase Selection",
+  "course": {
+    "code": "PC 206",
+    "title": "Instrumental Analysis",
+    "institution": "Horus University in Egypt (HUE)",
+    "faculty": "Faculty of Pharmacy",
+    "department": "Pharmaceutical Chemistry",
+    "academic_year": "2019/2020",
+    "coordinator": "Dr. Mahmoud Medhat Elkhoudary",
+    "head_of_department": "Prof. Dr. Magda Abd El-Azeez"
+  },
+  "pedagogy": {
+    "module": "Chromatography & Separation Sciences",
+    "module_weight": "50%",
+    "exam_mark_weight": "3.75 - 7.5 Marks",
+    "duration_minutes": 60,
+    "targeted_ilos": [
+      "a1",
+      "a2",
+      "b1",
+      "b2"
+    ],
+    "core_lab_linkage": "Column packing and sample loading techniques",
+    "governing_formulas": [
+      "V_R = V_M + K_D V_S \\quad",
+      "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+    ],
+    "cognitive_progression": {
+      "level_1_remember": "Define fundamental laws, terminology, and bounds of Column Chromatography & Mobile/Stationary Phase Selection.",
+      "level_2_understand": "Explain underlying physical mechanisms, instrumentation, and energy transitions.",
+      "level_3_apply": "Solve quantitative analytical calculations using $$V_R = V_M + K_D V_S \\quad | \\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}$$.",
+      "level_4_analyze": "Interpret spectral shifts, evaluate deviations, and troubleshoot analytical anomalies."
+    }
+  },
+  "quality_gates": {
+    "language": {
+      "policy": "100% English Academic Delivery",
+      "arabic_tolerance": 0.0,
+      "status": "PASS"
+    },
+    "brand_palette": {
+      "primary_navy": "#002147",
+      "accent_gold": "#FFB81C",
+      "pure_white": "#FFFFFF",
+      "prohibited_colors": [
+        "#FF0000",
+        "#990000"
+      ],
+      "status": "PASS"
+    },
+    "pedagogical_boundary": {
+      "retained_scope": "Classical gravity and low-pressure column chromatography, column dimensions and aspect ratios, stationary phases (silica gel, neutral/acidic alumina, Florisil), packing techniques (slurry wet packing vs dry tap packing), sample loading precautions to avoid channel channeling, isocratic vs step-gradient elution, mobile phase polarity series, collection of fractions, transition from gravity column to modern pressurized HPLC.",
+      "non_forced_clinical_rationale": "Classical column operations, wet/dry packing fluid dynamics, mobile phase eluotropic series, and transition to high efficiency separation systems.",
+      "excluded_scope": "Preparative industrial flash chromatography automation.",
+      "status": "PASS"
+    },
+    "vision_filtering": {
+      "policy": "Separate core educational diagrams from decorative slide artifacts",
+      "approved_assets_count": 19,
+      "filtered_decorative_count": 6,
+      "status": "PASS"
+    }
+  },
+  "visual_assets": {
+    "approved_scientific": [
+      {
+        "asset_id": "lec_09_fig_01.png",
+        "file_path": "assets/lec_09_fig_01.png",
+        "originating_slide": 6,
+        "target_slide": 6,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 6 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 6.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 6",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_02.png",
+        "file_path": "assets/lec_09_fig_02.png",
+        "originating_slide": 9,
+        "target_slide": 9,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 9 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 9.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 9",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_03.jpeg",
+        "file_path": "assets/lec_09_fig_03.jpeg",
+        "originating_slide": 4,
+        "target_slide": 4,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 4 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 4.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 4",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_04.png",
+        "file_path": "assets/lec_09_fig_04.png",
+        "originating_slide": 14,
+        "target_slide": 14,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 14 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 14.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 14",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_05.png",
+        "file_path": "assets/lec_09_fig_05.png",
+        "originating_slide": 12,
+        "target_slide": 12,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 12 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 12.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 12",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_06.png",
+        "file_path": "assets/lec_09_fig_06.png",
+        "originating_slide": 12,
+        "target_slide": 12,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 12 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 12.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 12",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_07.png",
+        "file_path": "assets/lec_09_fig_07.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 1 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 1.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 1",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_08.jpeg",
+        "file_path": "assets/lec_09_fig_08.jpeg",
+        "originating_slide": 13,
+        "target_slide": 13,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 13 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 13.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 13",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_09.png",
+        "file_path": "assets/lec_09_fig_09.png",
+        "originating_slide": 2,
+        "target_slide": 2,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 2 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 2.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 2",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_10.jpeg",
+        "file_path": "assets/lec_09_fig_10.jpeg",
+        "originating_slide": 8,
+        "target_slide": 8,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 8 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 8.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 8",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_11.jpeg",
+        "file_path": "assets/lec_09_fig_11.jpeg",
+        "originating_slide": 5,
+        "target_slide": 5,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 5 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 5.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 5",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_12.jpeg",
+        "file_path": "assets/lec_09_fig_12.jpeg",
+        "originating_slide": 7,
+        "target_slide": 7,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 7 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 7.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 7",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_13.png",
+        "file_path": "assets/lec_09_fig_13.png",
+        "originating_slide": 17,
+        "target_slide": 17,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 17 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 17.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 17",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_14.png",
+        "file_path": "assets/lec_09_fig_14.png",
+        "originating_slide": 10,
+        "target_slide": 10,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 10 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 10.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 10",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_15.png",
+        "file_path": "assets/lec_09_fig_15.png",
+        "originating_slide": 13,
+        "target_slide": 13,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 13 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 13.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 13",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_16.png",
+        "file_path": "assets/lec_09_fig_16.png",
+        "originating_slide": 10,
+        "target_slide": 10,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 10 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 10.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 10",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "lec_09_fig_17.png",
+        "file_path": "assets/lec_09_fig_17.png",
+        "originating_slide": 13,
+        "target_slide": 13,
+        "asset_class": "CORE_SCIENTIFIC_DIAGRAM",
+        "concept": "Scientific Diagram from Slide 13 (Column Chromatography & Mobile/Stationary Phase Selection)",
+        "technical_caption": "Core analytical schematic supporting Slide 13.",
+        "ocr_transcript": "Scientific terminology and experimental data from Slide 13",
+        "formulas": [
+          "V_R = V_M + K_D V_S \\quad",
+          "\\quad \\alpha = \\frac{k_2'}{k_1'} = \\frac{t_{R2} - t_M}{t_{R1} - t_M}"
+        ],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-hue.png",
+        "file_path": "assets/logo-hue.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Horus University in Egypt (HUE) Official Crest",
+        "technical_caption": "Official university emblem for institutional slide branding (#002147 / #FFB81C).",
+        "ocr_transcript": "HORUS UNIVERSITY - EGYPT, HUE",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      },
+      {
+        "asset_id": "logo-pharmacy.png",
+        "file_path": "assets/logo-pharmacy.png",
+        "originating_slide": 1,
+        "target_slide": 1,
+        "asset_class": "INSTITUTIONAL_EMBLEM",
+        "concept": "Faculty of Pharmacy Official Seal",
+        "technical_caption": "Faculty of Pharmacy official emblem for accredited slide deck title.",
+        "ocr_transcript": "FACULTY OF PHARMACY, HORUS UNIVERSITY",
+        "formulas": [],
+        "downstream_status": "APPROVED_FOR_GENERATION"
+      }
+    ],
+    "filtered_decorative": [
+      {
+        "asset_id": "lec_09_fig_01_decor.png",
+        "file_path": "assets/lec_09_fig_01_decor.png",
+        "originating_slide": 23,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Decorative graphic on Slide 23",
+        "filtering_rationale": "Non-instructional slide background or decorative graphic.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      },
+      {
+        "asset_id": "lec_09_fig_02_decor.png",
+        "file_path": "assets/lec_09_fig_02_decor.png",
+        "originating_slide": 21,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Decorative graphic on Slide 21",
+        "filtering_rationale": "Non-instructional slide background or decorative graphic.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      },
+      {
+        "asset_id": "lec_09_fig_03_decor.png",
+        "file_path": "assets/lec_09_fig_03_decor.png",
+        "originating_slide": 23,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Decorative graphic on Slide 23",
+        "filtering_rationale": "Non-instructional slide background or decorative graphic.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      },
+      {
+        "asset_id": "lec_09_fig_04_decor.png",
+        "file_path": "assets/lec_09_fig_04_decor.png",
+        "originating_slide": 20,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Decorative graphic on Slide 20",
+        "filtering_rationale": "Non-instructional slide background or decorative graphic.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      },
+      {
+        "asset_id": "lec_09_fig_05_decor.png",
+        "file_path": "assets/lec_09_fig_05_decor.png",
+        "originating_slide": 20,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Decorative graphic on Slide 20",
+        "filtering_rationale": "Non-instructional slide background or decorative graphic.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      },
+      {
+        "asset_id": "lec_09_fig_06_decor.png",
+        "file_path": "assets/lec_09_fig_06_decor.png",
+        "originating_slide": 22,
+        "asset_class": "DECORATIVE_FILTERED",
+        "description": "Decorative graphic on Slide 22",
+        "filtering_rationale": "Non-instructional slide background or decorative graphic.",
+        "downstream_status": "EXCLUDED_FROM_SLIDES"
+      }
+    ]
+  },
+  "sources": [
+    "Instrumental_Course_Specification_final_2019-2020.docx.md [COURSE_SPEC]",
+    "blueprint-PC_206_Instrumental_Analysis_Bachelor_Pharmacy_2020.docx.md [ASSESSMENT_BLUEPRINT]",
+    "Question_Bank_Calibrated_PC206.md [QUESTION_BANK]",
+    "LEC_9.pptx.md [LEGACY_SLIDES]",
+    "Principles of Instrumental Analysis, Skoog et al., 6th ed. [TEXTBOOK]",
+    "British Pharmacopoeia (BP) & United States Pharmacopeia (USP) [PHARMACOPOEIA]"
+  ]
+}

@@ -197,11 +197,11 @@ export default function StagePipelineStepper({
             <button
               onClick={onResetPipeline}
               disabled={isRunning}
-              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-white/60 text-xs font-display font-semibold transition flex items-center gap-1.5 border border-slate-200 dark:border-white/5 disabled:opacity-40"
-              title="Reset progress to Step 0"
+              className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-display font-semibold transition flex items-center gap-1.5 border border-rose-500/20 disabled:opacity-40"
+              title="Reset Multi-Agent Pipeline & clear generated vault notes (keeps Dossier & Ingestion files safe)"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset</span>
+              <span>Reset Pipeline</span>
             </button>
           </div>
         </div>

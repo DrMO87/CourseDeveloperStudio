@@ -15,20 +15,20 @@ export function QualityGuidelinesEditor({ guidelines, onChange }: Props) {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h3 className="text-base font-display font-bold text-white flex items-center gap-2 mb-1">
-          <BookOpen className="w-5 h-5 text-gold-400" />
-          Quality & Accreditation Guidelines
+        <h3 className="text-base font-display font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
+          <BookOpen className="w-5 h-5 text-amber-500 dark:text-gold-400" />
+          Quality &amp; Accreditation Guidelines
         </h3>
-        <p className="text-xs text-white/60 mb-6">
+        <p className="text-xs text-slate-500 dark:text-white/60 mb-6">
           Provide the accreditation authority (e.g., NQAAA, ABET) and the core guidelines. The AI orchestrator will use these rules to ground all generated curriculum and vault files.
         </p>
 
-        <div className="space-y-5 bg-white/5 border border-white/10 rounded-2xl p-5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-bl-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div className="space-y-5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 dark:bg-gold-500/10 rounded-bl-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
           
           <div>
-            <label className="block text-xs font-display font-semibold text-white/80 mb-1.5 flex items-center gap-2">
-              <ShieldCheck className="w-3.5 h-3.5 text-gold-400" />
+            <label className="block text-xs font-display font-semibold text-slate-700 dark:text-white/80 mb-1.5 flex items-center gap-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-500 dark:text-gold-400" />
               Accrediting Authority / Quality Agency Name
             </label>
             <input
@@ -36,13 +36,13 @@ export function QualityGuidelinesEditor({ guidelines, onChange }: Props) {
               value={guidelines?.authority_name || ''}
               onChange={(e) => updateField('authority_name', e.target.value)}
               placeholder="e.g. NQAAA, CAEP, ABET"
-              className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-gold-400 transition-colors"
+              className="w-full bg-white dark:bg-black/40 border border-slate-300 dark:border-white/15 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-gold-400 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-display font-semibold text-white/80 mb-1.5 flex items-center gap-2">
-              <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
+            <label className="block text-xs font-display font-semibold text-slate-700 dark:text-white/80 mb-1.5 flex items-center gap-2">
+              <ExternalLink className="w-3.5 h-3.5 text-sky-500" />
               Reference URL (Optional)
             </label>
             <input
@@ -50,14 +50,14 @@ export function QualityGuidelinesEditor({ guidelines, onChange }: Props) {
               value={guidelines?.reference_url || ''}
               onChange={(e) => updateField('reference_url', e.target.value)}
               placeholder="https://..."
-              className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-gold-400 transition-colors"
+              className="w-full bg-white dark:bg-black/40 border border-slate-300 dark:border-white/15 rounded-xl px-3.5 py-2.5 text-sm font-mono text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-gold-400 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-display font-semibold text-white/80 mb-1.5 flex items-center justify-between">
-              <span>Core Guidelines & Prompts</span>
-              <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+            <label className="block text-xs font-display font-semibold text-slate-700 dark:text-white/80 mb-1.5 flex items-center justify-between">
+              <span>Core Guidelines &amp; Prompts</span>
+              <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
                 AI Grounding Source
               </span>
             </label>
@@ -66,7 +66,7 @@ export function QualityGuidelinesEditor({ guidelines, onChange }: Props) {
               onChange={(e) => updateField('core_guidelines', e.target.value)}
               rows={6}
               placeholder="Describe the key guidelines and quality criteria that all courses must adhere to. The AI will inject this into its system prompt."
-              className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-gold-400 transition-colors resize-y min-h-[120px]"
+              className="w-full bg-white dark:bg-black/40 border border-slate-300 dark:border-white/15 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 dark:focus:border-gold-400 transition-colors resize-y min-h-[120px]"
             />
           </div>
         </div>
@@ -74,3 +74,4 @@ export function QualityGuidelinesEditor({ guidelines, onChange }: Props) {
     </div>
   );
 }
+

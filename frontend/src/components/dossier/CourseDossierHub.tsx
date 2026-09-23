@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { 
   FileText, 
   UploadCloud, 
   Plus, 
+  ArrowRight,
   Trash2, 
   Pencil,
   Bot, 
@@ -40,10 +42,12 @@ import {
   deleteDossierFile, 
   updateDossierFile,
   autoCategorizeDossier,
-  extractLecturesFromCourseSpecs 
+  extractLecturesFromCourseSpecs,
+  extractLecturesWithAi
 } from '@/lib/supabase';
 import { syncCourseToObsidian } from '@/lib/obsidianSync';
 import { AssessmentBlueprintModal } from './AssessmentBlueprintModal';
+import { LlmProcessLoadingMeter } from '@/components/LlmProcessLoadingMeter';
 
 interface Props {
   project: CourseProject;
@@ -145,14 +149,46 @@ export function CourseDossierHub({ project, organization }: Props) {
   const [selectedBlueprint, setSelectedBlueprint] = useState<ProjectDossierFile | null>(null);
   const [extractingLectures, setExtractingLectures] = useState(false);
 
+  // LLM Process Loading Meter State
+  const [meterActive, setMeterActive] = useState(false);
+  const [meterComplete, setMeterComplete] = useState(false);
+  const [meterTitle, setMeterTitle] = useState('');
+  const [meterSubtitle, setMeterSubtitle] = useState('');
+  const [meterAgent, setMeterAgent] = useState('SYLLABUS_ARCHITECT');
+  const [meterPhaseText, setMeterPhaseText] = useState<string | undefined>(undefined);
+  const [meterPhases, setMeterPhases] = useState<string[] | undefined>(undefined);
+
   const handleExtractLecturesFromSpec = async (file: ProjectDossierFile) => {
     setExtractingLectures(true);
+    setMeterActive(true);
+    setMeterComplete(false);
+    setMeterTitle(`Analyzing "${file.file_name}"`);
+    setMeterSubtitle('Synthesizing verified lecture schedule via SYLLABUS_ARCHITECT');
+    setMeterAgent('SYLLABUS_ARCHITECT');
+    setMeterPhases([
+      'Extracting course ILOs, weeks & topics',
+      'Querying active model to deconstruct syllabus',
+      'Validating session codes & credit durations',
+      'Writing lecture breakdown to Obsidian vault'
+    ]);
+    setDropToast(`⏳ SYLLABUS_ARCHITECT AI analyzing "${file.file_name}" via /api/llm/chat...`);
     try {
-      const extracted = await extractLecturesFromCourseSpecs(project.id, file.file_content_text || undefined);
-      setDropToast(`Successfully extracted ${extracted.length} lectures from "${file.file_name}"!`);
-      setTimeout(() => setDropToast(null), 5000);
+      const aiRes = await extractLecturesWithAi(project.id, file.file_content_text || undefined);
+      setMeterComplete(true);
+      if (aiRes.usedAi) {
+        setDropToast(`⚡ SYLLABUS_ARCHITECT extracted ${aiRes.sessions.length} sessions from "${file.file_name}"! (${aiRes.modelUsed})`);
+      } else {
+        setDropToast(`Successfully extracted ${aiRes.sessions.length} lectures from "${file.file_name}"!`);
+      }
+      setTimeout(() => {
+        setMeterActive(false);
+        setMeterComplete(false);
+      }, 1200);
+      setTimeout(() => setDropToast(null), 6000);
     } catch (err: any) {
       setDropToast(`Extraction error: ${err.message}`);
+      setMeterActive(false);
+      setMeterComplete(false);
       setTimeout(() => setDropToast(null), 5000);
     } finally {
       setExtractingLectures(false);
@@ -164,6 +200,7 @@ export function CourseDossierHub({ project, organization }: Props) {
   const [dropToast, setDropToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalFileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
   // Edit State
   const [editingFile, setEditingFile] = useState<ProjectDossierFile | null>(null);
@@ -177,12 +214,24 @@ export function CourseDossierHub({ project, organization }: Props) {
   const [fileContent, setFileContent] = useState('');
   const [uploading, setUploading] = useState(false);
   const [analyzingSwarm, setAnalyzingSwarm] = useState(false);
+  const [extractedAssetsCount, setExtractedAssetsCount] = useState<number>(0);
 
   const loadFiles = async () => {
     setLoading(true);
     try {
       const data = await fetchDossierFiles(project.id);
       setFiles(data);
+
+      try {
+        const slug = project.slug || project.course_code || 'default';
+        const aRes = await fetch(`/api/dossier/assets?projectSlug=${slug}`);
+        if (aRes.ok) {
+          const aData = await aRes.json();
+          setExtractedAssetsCount(Array.isArray(aData) ? aData.length : 0);
+        }
+      } catch {
+        // non-blocking
+      }
     } catch (err) {
       console.error(err);
       setFiles([]);
@@ -195,100 +244,207 @@ export function CourseDossierHub({ project, organization }: Props) {
     loadFiles();
   }, [project.id]);
 
+  const extractDroppedFiles = (dataTransfer: DataTransfer | null): File[] => {
+    if (!dataTransfer) return [];
+    const files: File[] = [];
+
+    if (dataTransfer.items && dataTransfer.items.length > 0) {
+      for (let i = 0; i < dataTransfer.items.length; i++) {
+        const item = dataTransfer.items[i];
+        if (item.kind === 'file') {
+          const f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+    }
+
+    if (files.length === 0 && dataTransfer.files && dataTransfer.files.length > 0) {
+      for (let i = 0; i < dataTransfer.files.length; i++) {
+        const f = dataTransfer.files[i];
+        if (f) files.push(f);
+      }
+    }
+
+    return files;
+  };
+
+  // Window-level Drag & Drop Prevention & Handler
+  useEffect(() => {
+    const handleWindowDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter.current += 1;
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+      setIsDraggingOver(true);
+    };
+
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+      setIsDraggingOver(true);
+    };
+
+    const handleWindowDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter.current -= 1;
+      if (dragCounter.current <= 0) {
+        dragCounter.current = 0;
+        setIsDraggingOver(false);
+      }
+    };
+
+    const handleWindowDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter.current = 0;
+      setIsDraggingOver(false);
+
+      const files = extractDroppedFiles(e.dataTransfer);
+      if (files.length > 0) {
+        await processFileList(files);
+      }
+    };
+
+    window.addEventListener('dragenter', handleWindowDragEnter);
+    window.addEventListener('dragover', handleWindowDragOver);
+    window.addEventListener('dragleave', handleWindowDragLeave);
+    window.addEventListener('drop', handleWindowDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleWindowDragEnter);
+      window.removeEventListener('dragover', handleWindowDragOver);
+      window.removeEventListener('dragleave', handleWindowDragLeave);
+      window.removeEventListener('drop', handleWindowDrop);
+    };
+  }, [project.id]);
+
   // Core Multi-File Ingestion Pipeline
   const processFileList = async (fileList: FileList | File[]) => {
-    if (!fileList || fileList.length === 0) return;
+    const filesArray = Array.isArray(fileList) ? fileList : Array.from(fileList);
+    if (!filesArray || filesArray.length === 0) return;
+
     setUploading(true);
+    setMeterActive(true);
+    setMeterComplete(false);
+    setMeterTitle(`Ingesting & Structuring ${filesArray.length} File(s)`);
+    setMeterSubtitle('Extracting text syntax, saving vault assets & running AI classification');
+    setMeterAgent('CONTEXT_INGESTOR');
+    setMeterPhases([
+      'Streaming files & reading binary data',
+      'Extracting document syntax & office media',
+      'Categorizing files into Dossier classification matrix',
+      'Synchronizing records to Obsidian PARA vault'
+    ]);
+    setDropToast(`⏳ Ingesting ${filesArray.length} file(s) into Course Dossier...`);
     const addedFiles: ProjectDossierFile[] = [];
 
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      let contentText = '';
-
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      const isTextFile = ['txt', 'md', 'tex', 'latex', 'json', 'csv', 'yaml', 'yml', 'py', 'c', 'cpp', 'h', 'xml', 'html', 'smi'].includes(ext) || file.type.startsWith('text/');
-
-      if (isTextFile) {
-        try {
-          contentText = await file.text();
-        } catch {
-          contentText = `File content: ${file.name} (${file.size} bytes)`;
-        }
-      } else if (['pdf', 'pptx', 'docx', 'xlsx', 'odt', 'odp', 'ods'].includes(ext)) {
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('projectSlug', project.slug || project.course_code || 'default');
-          const extractRes = await fetch('/api/extract', { method: 'POST', body: formData });
-          const extractData = await extractRes.json();
-          if (extractData.success && extractData.text) {
-             contentText = extractData.text;
-          } else {
-             contentText = `Binary / Document Asset: ${file.name} (${Math.round(file.size / 1024)} KB)`;
-          }
-        } catch {
-          contentText = `Binary / Document Asset: ${file.name} (${Math.round(file.size / 1024)} KB)`;
-        }
-      } else {
-        contentText = `Binary / Document Asset: ${file.name} (${Math.round(file.size / 1024)} KB)`;
-      }
-
-      // Auto-detect category from filename or contents
-      const lowerName = file.name.toLowerCase();
-      let detectedCategory: DossierFileCategory = 'UNCLASSIFIED';
-      if (lowerName.includes('spec') || lowerName.includes('syllabus') || lowerName.includes('ilo') || lowerName.includes('course')) {
-        detectedCategory = 'COURSE_SPEC';
-      } else if (lowerName.includes('blueprint') || lowerName.includes('exam') || lowerName.includes('matrix') || lowerName.includes('مواصفات')) {
-        detectedCategory = 'ASSESSMENT_BLUEPRINT';
-      } else if (lowerName.includes('case') || lowerName.includes('vignette') || lowerName.includes('clinical')) {
-        detectedCategory = 'CASE_STUDY_BANK';
-      } else if (lowerName.includes('chem') || lowerName.includes('molecule') || lowerName.includes('reaction') || ext === 'cdx' || ext === 'smi') {
-        detectedCategory = 'CHEM_MOLECULAR';
-      } else if (lowerName.includes('math') || lowerName.includes('calculus') || lowerName.includes('equation') || ext === 'tex') {
-        detectedCategory = 'MATH_EQUATIONS';
-      } else if (lowerName.includes('lab') || lowerName.includes('sop') || lowerName.includes('protocol')) {
-        detectedCategory = 'LAB_CLINICAL_PROTOCOL';
-      } else if (lowerName.includes('question') || lowerName.includes('bank') || lowerName.includes('mcq') || lowerName.includes('exam')) {
-        detectedCategory = 'QUESTION_BANK';
-      }
-
-      const newRecord = await createDossierFile({
-        project_id: project.id,
-        file_name: file.name,
-        file_size_bytes: file.size,
-        mime_type: file.type || `application/${ext || 'octet-stream'}`,
-        category: detectedCategory,
-        summary: `Uploaded file: ${file.name} (${detectedCategory.replace(/_/g, ' ')})`,
-        file_content_text: contentText,
-      });
-
-      addedFiles.push(newRecord);
-
-      // If this is a course spec or contains lectures, auto-extract the real lecture syllabus
-      if (detectedCategory === 'COURSE_SPEC' || contentText.includes('Lecture') || contentText.includes('Week') || contentText.includes('Topic')) {
-        try {
-          await extractLecturesFromCourseSpecs(project.id, contentText);
-        } catch {
-          // ignore extraction error
-        }
-      }
-    }
-
-    const updatedFiles = [...addedFiles, ...files];
-    setFiles(updatedFiles);
-    setUploading(false);
-
-    // Auto-sync real uploaded files to Obsidian Vault on disk
     try {
-      const syncResult = await syncCourseToObsidian(organization || null, project, undefined, undefined, updatedFiles);
-      setDropToast(syncResult.success
-        ? `✅ Ingested ${fileList.length} file(s) and synced to Obsidian Vault on disk!`
-        : `Ingested ${fileList.length} file(s), but vault sync was skipped: ${syncResult.error || syncResult.message}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'unknown sync error';
-      setDropToast(`Ingested ${fileList.length} file(s), but vault sync failed: ${message}`);
+      for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i];
+        setMeterPhaseText(`Extracting (${i + 1}/${filesArray.length}): ${file.name}`);
+        let contentText = '';
+
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        const isTextFile = ['txt', 'md', 'tex', 'latex', 'json', 'csv', 'yaml', 'yml', 'py', 'c', 'cpp', 'h', 'xml', 'html', 'smi'].includes(ext) || file.type.startsWith('text/');
+
+        if (isTextFile) {
+          try {
+            contentText = await file.text();
+          } catch {
+            contentText = `File content: ${file.name} (${file.size} bytes)`;
+          }
+        } else {
+          // Route all binaries (PDF, Word, PPTX, Images, CDX, etc.) through /api/extract to save into vault assets
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('projectSlug', project.slug || project.course_code || 'default');
+            const extractRes = await fetch('/api/extract', { method: 'POST', body: formData });
+            const extractData = await extractRes.json();
+            if (extractData.success && extractData.text) {
+              contentText = extractData.text;
+            } else {
+              contentText = `Binary Asset: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+            }
+          } catch {
+            contentText = `Binary Asset: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+          }
+        }
+
+        // Auto-detect category from filename or contents
+        const lowerName = file.name.toLowerCase();
+        let detectedCategory: DossierFileCategory = 'UNCLASSIFIED';
+        if (lowerName.includes('spec') || lowerName.includes('syllabus') || lowerName.includes('ilo') || lowerName.includes('course')) {
+          detectedCategory = 'COURSE_SPEC';
+        } else if (lowerName.includes('blueprint') || lowerName.includes('exam') || lowerName.includes('matrix') || lowerName.includes('مواصفات')) {
+          detectedCategory = 'ASSESSMENT_BLUEPRINT';
+        } else if (lowerName.includes('case') || lowerName.includes('vignette') || lowerName.includes('clinical')) {
+          detectedCategory = 'CASE_STUDY_BANK';
+        } else if (lowerName.includes('chem') || lowerName.includes('molecule') || lowerName.includes('reaction') || ext === 'cdx' || ext === 'smi') {
+          detectedCategory = 'CHEM_MOLECULAR';
+        } else if (lowerName.includes('math') || lowerName.includes('calculus') || lowerName.includes('equation') || ext === 'tex') {
+          detectedCategory = 'MATH_EQUATIONS';
+        } else if (lowerName.includes('lab') || lowerName.includes('sop') || lowerName.includes('protocol')) {
+          detectedCategory = 'LAB_CLINICAL_PROTOCOL';
+        } else if (lowerName.includes('question') || lowerName.includes('bank') || lowerName.includes('mcq') || lowerName.includes('exam')) {
+          detectedCategory = 'QUESTION_BANK';
+        }
+
+        try {
+          const newRecord = await createDossierFile({
+            project_id: project.id,
+            file_name: file.name,
+            file_size_bytes: file.size,
+            mime_type: file.type || `application/${ext || 'octet-stream'}`,
+            category: detectedCategory,
+            summary: `Uploaded file: ${file.name} (${detectedCategory.replace(/_/g, ' ')})`,
+            file_content_text: contentText,
+          });
+
+          addedFiles.push(newRecord);
+
+          // Immediately update state so file card appears in UI instantly
+          setFiles(prev => [newRecord, ...prev.filter(f => f.id !== newRecord.id)]);
+
+          // Trigger non-blocking AI syllabus extraction if course spec or syllabus content is provided
+          if (detectedCategory === 'COURSE_SPEC' || contentText.includes('Lecture') || contentText.includes('Week') || contentText.includes('Topic')) {
+            extractLecturesWithAi(project.id, contentText)
+              .then((aiRes: any) => {
+                if (aiRes.usedAi && aiRes.sessions.length > 0) {
+                  setDropToast(`⚡ SYLLABUS_ARCHITECT synthesized ${aiRes.sessions.length} sessions from "${file.name}"! (${aiRes.modelUsed})`);
+                  setTimeout(() => setDropToast(null), 6000);
+                }
+              })
+              .catch(() => {});
+          }
+        } catch (itemErr: any) {
+          console.error('Error creating dossier file:', itemErr);
+        }
+      }
+
+      // Auto-sync real uploaded files to Obsidian Vault on disk
+      try {
+        await syncCourseToObsidian(organization || null, project, undefined, undefined, addedFiles);
+        setDropToast(`✅ Ingested ${addedFiles.length} file(s) and synced to Obsidian Vault!`);
+      } catch {
+        setDropToast(`✅ Ingested ${addedFiles.length} file(s) into Course Dossier!`);
+      }
+      setTimeout(() => setDropToast(null), 5000);
+    } catch (err: any) {
+      console.error('Batch file ingestion error:', err);
+      setDropToast(`Ingestion notice: ${err.message || 'Partial upload'}`);
+      setTimeout(() => setDropToast(null), 5000);
+    } finally {
+      setMeterComplete(true);
+      setTimeout(() => {
+        setMeterActive(false);
+        setMeterComplete(false);
+        setMeterPhaseText(undefined);
+      }, 1200);
+      setUploading(false);
     }
-    setTimeout(() => setDropToast(null), 5000);
   };
 
   const handleCreateBlueprint = async () => {
@@ -360,29 +516,41 @@ export function CourseDossierHub({ project, organization }: Props) {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!isDraggingOver) setIsDraggingOver(true);
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    setIsDraggingOver(true);
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
     setIsDraggingOver(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    setIsDraggingOver(false);
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setIsDraggingOver(false);
+    }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounter.current = 0;
     setIsDraggingOver(false);
 
-    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-      await processFileList(e.dataTransfer.files);
+    const files = extractDroppedFiles(e.dataTransfer);
+    if (files.length > 0) {
+      await processFileList(files);
     }
   };
 
@@ -392,7 +560,7 @@ export function CourseDossierHub({ project, organization }: Props) {
     setUploading(true);
 
     try {
-      await createDossierFile({
+      const created = await createDossierFile({
         project_id: project.id,
         file_name: fileName.trim(),
         category: manualCategory,
@@ -403,17 +571,34 @@ export function CourseDossierHub({ project, organization }: Props) {
       setFileName('');
       setFileContent('');
       await loadFiles();
-    } catch (err) {
+
+      // Trigger AI lecture extraction if course spec or syllabus content is provided
+      if (manualCategory === 'COURSE_SPEC' || fileContent.includes('Lecture') || fileContent.includes('Topic') || fileContent.includes('Week')) {
+        setDropToast(`⏳ Analyzing "${created.file_name}" with SYLLABUS_ARCHITECT...`);
+        try {
+          const aiRes = await extractLecturesWithAi(project.id, created.file_content_text || undefined);
+          if (aiRes.usedAi) {
+            setDropToast(`⚡ SYLLABUS_ARCHITECT generated ${aiRes.sessions.length} sessions from "${created.file_name}"! (${aiRes.modelUsed})`);
+          } else {
+            setDropToast(`✅ Ingested "${created.file_name}" and generated ${aiRes.sessions.length} sessions!`);
+          }
+        } catch {
+          setDropToast(`✅ Successfully ingested "${created.file_name}" into Course Dossier!`);
+        }
+      } else {
+        setDropToast(`✅ Successfully ingested "${created.file_name}" into Course Dossier!`);
+      }
+      setTimeout(() => setDropToast(null), 5000);
+    } catch (err: any) {
       console.error('Error uploading dossier file:', err);
+      setDropToast(`Error: ${err.message || 'Upload failed'}`);
+      setTimeout(() => setDropToast(null), 5000);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleModalFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
-
+  const processSingleFileForModal = async (selected: File) => {
     setFileName(selected.name);
     const ext = selected.name.split('.').pop()?.toLowerCase() || '';
     const isText = ['txt', 'md', 'tex', 'latex', 'json', 'csv', 'yaml', 'yml', 'py', 'c', 'cpp', 'h', 'xml', 'html', 'smi'].includes(ext) || selected.type.startsWith('text/');
@@ -425,6 +610,22 @@ export function CourseDossierHub({ project, organization }: Props) {
       } catch {
         setFileContent(`[Attached file: ${selected.name}]`);
       }
+    } else if (['pdf', 'pptx', 'docx', 'xlsx', 'odt', 'odp', 'ods'].includes(ext)) {
+      setFileContent(`⏳ Extracting text from ${selected.name} via Document Extraction Engine...`);
+      try {
+        const formData = new FormData();
+        formData.append('file', selected);
+        formData.append('projectSlug', project.slug || project.course_code || 'default');
+        const extractRes = await fetch('/api/extract', { method: 'POST', body: formData });
+        const extractData = await extractRes.json();
+        if (extractData.success && extractData.text) {
+          setFileContent(extractData.text);
+        } else {
+          setFileContent(`Attached File: ${selected.name} (${Math.round(selected.size / 1024)} KB)`);
+        }
+      } catch {
+        setFileContent(`Attached File: ${selected.name} (${Math.round(selected.size / 1024)} KB)`);
+      }
     } else {
       setFileContent(`[Document asset: ${selected.name} (${Math.round(selected.size / 1024)} KB)]`);
     }
@@ -433,6 +634,12 @@ export function CourseDossierHub({ project, organization }: Props) {
     if (auto.category) {
       setManualCategory(auto.category);
     }
+  };
+
+  const handleModalFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    await processSingleFileForModal(selected);
   };
 
   const handleSwarmCategorizeAll = async () => {
@@ -501,15 +708,21 @@ export function CourseDossierHub({ project, organization }: Props) {
     >
       {/* Drag & Drop Full-Zone Overlay */}
       {isDraggingOver && (
-        <div className="absolute inset-0 z-40 bg-sky-500/20 dark:bg-sky-500/30 backdrop-blur-sm border-2 border-dashed border-sky-500 dark:border-sky-400 rounded-3xl flex flex-col items-center justify-center pointer-events-none p-6 text-center animate-in fade-in zoom-in-95 duration-200">
-          <div className="w-20 h-20 rounded-3xl bg-white dark:bg-[#001530] text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-2xl mb-4 animate-bounce">
-            <UploadCloud className="w-10 h-10" />
+        <div 
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className="fixed inset-0 z-50 bg-sky-600/30 dark:bg-sky-950/70 backdrop-blur-md border-4 border-dashed border-sky-400 dark:border-sky-300 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-150 pointer-events-auto select-none cursor-copy"
+        >
+          <div className="w-24 h-24 rounded-3xl bg-white dark:bg-[#001530] text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-2xl mb-4 animate-bounce border border-sky-200 dark:border-sky-500/30 pointer-events-none">
+            <UploadCloud className="w-12 h-12 pointer-events-none" />
           </div>
-          <h3 className="text-xl font-display font-extrabold text-slate-900 dark:text-white">
+          <h3 className="text-2xl font-display font-black text-slate-900 dark:text-white drop-shadow-md pointer-events-none">
             Drop Files to Ingest into Course Dossier
           </h3>
-          <p className="text-sm text-slate-600 dark:text-white/80 max-w-md mt-1">
-            Accepts PDF, PPTX, ChemDraw (.cdx), LaTeX (.tex), DOCX, Images, and Markdown. Swarm will auto-classify upon drop.
+          <p className="text-sm text-slate-700 dark:text-sky-100/90 max-w-md mt-2 font-medium pointer-events-none">
+            Release mouse to upload. Supports PDF, PPTX, Word (.docx), ChemDraw (.cdx), LaTeX (.tex), Exam Blueprints, and Markdown.
           </p>
         </div>
       )}
@@ -522,12 +735,28 @@ export function CourseDossierHub({ project, organization }: Props) {
         </div>
       )}
 
+      {/* LLM Model Response Speed-Aware Process Loading Meter */}
+      <LlmProcessLoadingMeter
+        isActive={meterActive}
+        isComplete={meterComplete}
+        processTitle={meterTitle}
+        processSubtitle={meterSubtitle}
+        activeAgent={meterAgent}
+        currentPhaseText={meterPhaseText}
+        phases={meterPhases}
+      />
+
       {/* Hidden File Input for Native File Browser */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
-        onChange={(e) => e.target.files && processFileList(e.target.files)}
+        onChange={async (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            await processFileList(e.target.files);
+            e.target.value = '';
+          }
+        }}
         className="hidden"
       />
 
@@ -592,20 +821,47 @@ export function CourseDossierHub({ project, organization }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={async () => {
+                setExtractingLectures(true);
+                setMeterActive(true);
+                setMeterComplete(false);
+                setMeterTitle('AI Ingesting & Scheduling Course Sessions');
+                setMeterSubtitle('Deconstructing Course Specs & Blueprints via SYLLABUS_ARCHITECT');
+                setMeterAgent('SYLLABUS_ARCHITECT');
+                setMeterPhases([
+                  'Aggregating Course Specs, Blueprints & Question Banks',
+                  'Dispatching to cognitive LLM matrix for syllabus deconstruction',
+                  'Validating weekly pedagogical milestones & contact hours',
+                  'Writing full lecture breakdown to Obsidian vault'
+                ]);
+                setDropToast('⏳ SYLLABUS_ARCHITECT AI analyzing Course Dossier via /api/llm/chat...');
                 try {
-                  const extracted = await extractLecturesFromCourseSpecs(project.id);
-                  setDropToast(`Successfully generated ${extracted.length} sessions from Dossier!`);
-                  setTimeout(() => setDropToast(null), 5000);
+                  const aiRes = await extractLecturesWithAi(project.id);
+                  setMeterComplete(true);
+                  if (aiRes.usedAi) {
+                    setDropToast(`⚡ SYLLABUS_ARCHITECT synthesized ${aiRes.sessions.length} sessions from Course Dossier! (${aiRes.modelUsed})`);
+                  } else {
+                    setDropToast(`✅ Generated ${aiRes.sessions.length} sessions from Dossier! (${aiRes.modelUsed})`);
+                  }
+                  setTimeout(() => {
+                    setMeterActive(false);
+                    setMeterComplete(false);
+                  }, 1200);
+                  setTimeout(() => setDropToast(null), 6000);
                 } catch (e: any) {
                   setDropToast(`Error: ${e.message}`);
+                  setMeterActive(false);
+                  setMeterComplete(false);
                   setTimeout(() => setDropToast(null), 5000);
+                } finally {
+                  setExtractingLectures(false);
                 }
               }}
-              className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-display font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap"
-              title="Automatically ingest files and make suitable dossier / schedule"
+              disabled={extractingLectures}
+              className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white font-display font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5 whitespace-nowrap disabled:opacity-50"
+              title="SYLLABUS_ARCHITECT AI: Analyze Course Specs, Blueprints & Slides to generate verified schedule"
             >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Auto-Generate Schedule</span>
+              <Zap className={`w-3.5 h-3.5 text-amber-300 ${extractingLectures ? 'animate-spin' : ''}`} />
+              <span>{extractingLectures ? 'AI Ingesting Schedule...' : '⚡ AI Ingest & Schedule'}</span>
             </button>
             <button
               onClick={handleCreateBlueprint}
@@ -630,6 +886,10 @@ export function CourseDossierHub({ project, organization }: Props) {
       {/* Interactive Drag & Drop Banner */}
       <div 
         onClick={() => fileInputRef.current?.click()}
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className="cursor-pointer border-2 border-dashed border-slate-300 hover:border-amber-500 dark:border-white/15 dark:hover:border-gold-400/60 bg-slate-50/50 hover:bg-amber-50/30 dark:bg-black/20 dark:hover:bg-gold-400/[0.03] rounded-3xl p-6 transition-all text-center flex flex-col items-center justify-center gap-2 group select-none"
       >
         <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-gold-400 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -645,6 +905,37 @@ export function CourseDossierHub({ project, organization }: Props) {
         </div>
       </div>
 
+      {/* Extracted Visual Media Assets Strip */}
+      {extractedAssetsCount > 0 && (
+        <div className="bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-sky-500/10 border border-teal-500/20 dark:border-teal-400/20 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+              <FlaskConical className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-display font-extrabold text-slate-900 dark:text-white">
+                  {extractedAssetsCount} Extracted Visual Assets &amp; Figures
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30">
+                  Dossier/_assets
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-white/60 mt-0.5">
+                Diagrams, spectra, chemical formulas &amp; figures extracted from presentation slides and Word specs.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/dossier/validate?projectId=${project.id}&view=assets`}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-display font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition shrink-0 whitespace-nowrap"
+          >
+            <span>Inspect Media Gallery in Step 3</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
+
       {/* Category Pills Bar */}
       <div className="flex flex-wrap gap-2">
         <button
@@ -657,6 +948,17 @@ export function CourseDossierHub({ project, organization }: Props) {
         >
           All Categories ({files.length})
         </button>
+
+        {extractedAssetsCount > 0 && (
+          <Link
+            href={`/dossier/validate?projectId=${project.id}&view=assets`}
+            className="px-3 py-1.5 rounded-xl text-xs font-display font-bold transition flex items-center gap-1.5 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700/50 hover:bg-teal-100 dark:hover:bg-teal-900/50"
+            title={`Inspect ${extractedAssetsCount} extracted visual assets and diagrams in Step 3`}
+          >
+            <FlaskConical className="w-3.5 h-3.5 text-teal-500" />
+            <span>Extracted Visual Assets ({extractedAssetsCount})</span>
+          </Link>
+        )}
 
         {(Object.keys(CATEGORY_CONFIG) as DossierFileCategory[]).map((cat) => {
           const cfg = CATEGORY_CONFIG[cat];
@@ -688,7 +990,13 @@ export function CourseDossierHub({ project, organization }: Props) {
           Loading dossier files...
         </div>
       ) : filteredFiles.length === 0 ? (
-        <div className="py-16 text-center bg-white dark:bg-[#001530]/60 rounded-3xl border border-slate-200 dark:border-white/10 p-8 space-y-4 shadow-sm">
+        <div 
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className="py-16 text-center bg-white dark:bg-[#001530]/60 rounded-3xl border border-slate-200 dark:border-white/10 p-8 space-y-4 shadow-sm"
+        >
           <FolderArchive className="w-12 h-12 text-slate-300 dark:text-white/20 mx-auto" />
           <h3 className="text-lg font-display font-bold text-slate-900 dark:text-white">No files in this category</h3>
           <p className="text-sm text-slate-500 dark:text-white/60 max-w-md mx-auto">
@@ -925,6 +1233,18 @@ export function CourseDossierHub({ project, organization }: Props) {
             {/* Modal Drag Drop Area */}
             <div 
               onClick={() => modalFileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+              }}
+              onDrop={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+                  await processSingleFileForModal(e.dataTransfer.files[0]);
+                }
+              }}
               className="cursor-pointer border-2 border-dashed border-slate-300 hover:border-amber-500 dark:border-white/15 dark:hover:border-gold-400/60 bg-slate-50 dark:bg-black/20 rounded-2xl p-4 text-center flex flex-col items-center justify-center gap-1.5 transition-colors group"
             >
               <input
@@ -935,7 +1255,7 @@ export function CourseDossierHub({ project, organization }: Props) {
               />
               <FileUp className="w-6 h-6 text-slate-400 group-hover:text-amber-500 transition-colors" />
               <span className="text-xs font-display font-bold text-slate-700 dark:text-white/80">
-                Click to attach a file from your PC
+                Click or Drop a file here from your PC
               </span>
               <span className="text-[10px] text-slate-400 dark:text-white/40">
                 Auto-extracts text, file name, and recommended category

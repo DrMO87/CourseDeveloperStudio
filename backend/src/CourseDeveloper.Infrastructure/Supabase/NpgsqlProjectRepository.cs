@@ -22,7 +22,7 @@ public class NpgsqlProjectRepository : IProjectRepository
         return new CourseProject
         {
             Id = reader.GetGuid(reader.GetOrdinal("id")),
-            UserId = reader.GetGuid(reader.GetOrdinal("user_id")),
+            UserId = reader.IsDBNull(reader.GetOrdinal("user_id")) ? Guid.Empty : reader.GetGuid(reader.GetOrdinal("user_id")),
             Slug = reader.GetString(reader.GetOrdinal("slug")),
             Name = reader.GetString(reader.GetOrdinal("name")),
             OrganizationId = reader.IsDBNull(reader.GetOrdinal("organization_id")) ? null : reader.GetGuid(reader.GetOrdinal("organization_id")),
@@ -31,7 +31,7 @@ public class NpgsqlProjectRepository : IProjectRepository
             Prerequisites = reader.IsDBNull(reader.GetOrdinal("prerequisites")) ? null : reader.GetString(reader.GetOrdinal("prerequisites")),
             AcademicTerm = reader.IsDBNull(reader.GetOrdinal("academic_term")) ? null : reader.GetString(reader.GetOrdinal("academic_term")),
             TotalSessions = reader.IsDBNull(reader.GetOrdinal("total_sessions")) ? null : reader.GetInt32(reader.GetOrdinal("total_sessions")),
-            TargetAgeBand = reader.GetString(reader.GetOrdinal("target_age_band")),
+            TargetAgeBand = reader.IsDBNull(reader.GetOrdinal("target_age_band")) ? string.Empty : reader.GetString(reader.GetOrdinal("target_age_band")),
             Levels = ((int[])reader.GetValue(reader.GetOrdinal("levels"))).ToList(),
             SessionsPerLevel = reader.GetInt32(reader.GetOrdinal("sessions_per_level")),
             ObsidianVaultProjectPath = reader.IsDBNull(reader.GetOrdinal("obsidian_vault_project_path")) ? null : reader.GetString(reader.GetOrdinal("obsidian_vault_project_path")),
