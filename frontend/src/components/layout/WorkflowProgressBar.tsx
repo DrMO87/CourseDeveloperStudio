@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { BookOpen, FolderArchive, Layers, Check, FileCheck2, Cpu } from 'lucide-react';
+import { BookOpen, FolderArchive, Layers, Check, FileCheck2, Cpu, Building2 } from 'lucide-react';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -10,7 +10,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export type WorkflowStep = 'PROJECTS' | 'DOSSIER' | 'VALIDATE' | 'LLM_MATRIX' | 'STUDIO' | 'ORGANIZATIONS';
+export type WorkflowStep = 'ORGANIZATIONS' | 'LLM_MATRIX' | 'PROJECTS' | 'DOSSIER' | 'VALIDATE' | 'STUDIO';
 
 interface Props {
   currentStep: WorkflowStep;
@@ -22,8 +22,24 @@ interface Props {
 
 const STEPS = [
   {
-    key: 'PROJECTS' as WorkflowStep,
+    key: 'ORGANIZATIONS' as WorkflowStep,
     stepNum: 1,
+    label: 'Institutions & Profiles',
+    sublabel: 'Brand & Guidelines',
+    href: '/organizations',
+    icon: Building2,
+  },
+  {
+    key: 'LLM_MATRIX' as WorkflowStep,
+    stepNum: 2,
+    label: 'LLM Model Matrix',
+    sublabel: 'Assign Models & Local LM',
+    href: '/matrix',
+    icon: Cpu,
+  },
+  {
+    key: 'PROJECTS' as WorkflowStep,
+    stepNum: 3,
     label: 'Curriculum Projects',
     sublabel: 'Define Scope & Courses',
     href: '/projects',
@@ -31,7 +47,7 @@ const STEPS = [
   },
   {
     key: 'DOSSIER' as WorkflowStep,
-    stepNum: 2,
+    stepNum: 4,
     label: 'Course Dossier',
     sublabel: 'Ingest Specs & Slides',
     href: '/dossier',
@@ -39,23 +55,15 @@ const STEPS = [
   },
   {
     key: 'VALIDATE' as WorkflowStep,
-    stepNum: 3,
+    stepNum: 5,
     label: 'Validate Content',
     sublabel: 'Audit Text & Diagrams',
     href: '/dossier/validate',
     icon: FileCheck2,
   },
   {
-    key: 'LLM_MATRIX' as WorkflowStep,
-    stepNum: 4,
-    label: 'LLM Model Matrix',
-    sublabel: 'Assign Models & Local LM',
-    href: '/matrix',
-    icon: Cpu,
-  },
-  {
     key: 'STUDIO' as WorkflowStep,
-    stepNum: 5,
+    stepNum: 6,
     label: 'Studio Swarm',
     sublabel: 'Synthesize & Generate',
     href: '/',
@@ -69,9 +77,7 @@ export function WorkflowProgressBar({
   projectName,
   completedSteps = [],
 }: Props) {
-  // Map secondary or legacy steps to the 5 core steps gracefully
-  let effectiveKey: WorkflowStep = currentStep;
-  if (currentStep === 'ORGANIZATIONS') effectiveKey = 'PROJECTS';
+  const effectiveKey: WorkflowStep = currentStep;
   const currentIdx = Math.max(0, STEPS.findIndex((s) => s.key === effectiveKey));
 
   return (

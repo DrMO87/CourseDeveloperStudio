@@ -510,7 +510,7 @@ function MatrixContent() {
     setTimeout(() => {
       setSavedSuccess(false);
       if (proceedToNext) {
-        const nextUrl = projectId ? `/?projectId=${projectId}` : '/';
+        const nextUrl = projectId ? `/projects?projectId=${projectId}` : '/projects';
         router.push(nextUrl);
       }
     }, 400);
@@ -565,16 +565,16 @@ function MatrixContent() {
         currentStep="LLM_MATRIX"
         projectId={projectId || undefined}
         projectName={projectName || undefined}
-        progressPercent={80}
+        progressPercent={33}
       />
 
-      {/* 2. Step 4 Header & Navigation Bar */}
+      {/* 2. Step 2 Header & Navigation Bar */}
       <div className="bg-white dark:bg-[#001530]/80 border border-slate-200 dark:border-white/10 rounded-3xl p-6 shadow-sm dark:shadow-card backdrop-blur-md flex flex-col md:flex-row md:items-center md:justify-between gap-5 transition-colors">
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-display font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
               <Cpu className="w-7 h-7 text-amber-500 dark:text-gold-400" />
-              Step 4: LLM Model Matrix &amp; Swarm Engine
+              Step 2: LLM Model Matrix &amp; Swarm Engine
             </h1>
             <span className="text-[10px] uppercase font-display font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
               SOTA 2026 Frontier
@@ -609,17 +609,17 @@ function MatrixContent() {
         {/* Step Navigation CTAs */}
         <div className="flex flex-wrap items-center gap-2.5">
           <Link
-            href={projectId ? `/dossier/validate?projectId=${projectId}` : '/dossier/validate'}
+            href="/organizations"
             className="px-3.5 py-2 bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-white font-display font-bold rounded-xl text-xs transition"
           >
-            &larr; Back to Step 3: Validate
+            &larr; Step 1: Institutions
           </Link>
           <button
             type="button"
             onClick={() => handleSaveMatrix(true)}
             className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white dark:text-primary-900 font-display font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
           >
-            <span>Proceed to Step 5: Studio Swarm</span>
+            <span>Proceed to Step 3: Curriculum Projects</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

@@ -28,20 +28,20 @@ function cn(...inputs: any[]) {
 
 const navGroups = [
   {
-    label: 'Curriculum Lifecycle',
+    label: 'Setup & Governance',
     items: [
-      { href: '/projects', label: '1. Curriculum Projects', shortLabel: 'Projects', step: '1', icon: BookOpen },
-      { href: '/dossier', label: '2. Course Dossier Hub', shortLabel: 'Dossier', step: '2', icon: FolderArchive },
-      { href: '/dossier/validate', label: '3. Validate Content', shortLabel: 'Validate', step: '3', icon: FileCheck2 },
-      { href: '/matrix', label: '4. LLM Model Matrix', shortLabel: 'Matrix', step: '4', icon: Cpu },
-      { href: '/', label: '5. Studio Swarm Dashboard', shortLabel: 'Swarm', step: '5', icon: Layers },
-      { href: '/graph', label: '6. Obsidian Knowledge Map', shortLabel: 'Graph', step: '6', icon: Share2 },
+      { href: '/organizations', label: '1. Institutions & Profiles', shortLabel: 'Institutions', step: '1', icon: Building2 },
+      { href: '/matrix', label: '2. LLM Model Matrix', shortLabel: 'Matrix', step: '2', icon: Cpu },
     ],
   },
   {
-    label: 'Governance & Rules',
+    label: 'Curriculum Lifecycle',
     items: [
-      { href: '/organizations', label: 'Institutions & Profiles', shortLabel: 'Institutions', step: 'Gov', icon: Building2 },
+      { href: '/projects', label: '3. Curriculum Projects', shortLabel: 'Projects', step: '3', icon: BookOpen },
+      { href: '/dossier', label: '4. Course Dossier Hub', shortLabel: 'Dossier', step: '4', icon: FolderArchive },
+      { href: '/dossier/validate', label: '5. Validate Content', shortLabel: 'Validate', step: '5', icon: FileCheck2 },
+      { href: '/', label: '6. Studio Swarm Dashboard', shortLabel: 'Swarm', step: '6', icon: Layers },
+      { href: '/graph', label: '7. Obsidian Knowledge Map', shortLabel: 'Graph', step: '7', icon: Share2 },
     ],
   },
 ];
