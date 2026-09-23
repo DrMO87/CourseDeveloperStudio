@@ -456,7 +456,7 @@ export function CourseDossierHub({ project, organization }: Props) {
 
     const defaultBlueprint = {
       course_title: project.name,
-      course_code: project.course_code || 'PHAR-301',
+      course_code: project.course_code || 'PC 206',
       credit_hours: project.credit_hours || 3,
       total_marks: 100,
       target_question_count: 25,
