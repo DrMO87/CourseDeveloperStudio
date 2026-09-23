@@ -809,7 +809,38 @@ function MatrixContent() {
             </div>
           </div>
 
-          {/* ─── LM Studio Local Hub (Interactive Detection & Mounting) ─── */}
+          {/* ─── LM Studio Local Hub (PC) vs Mobile Cloud Hub (Mobile) ─── */}
+          {isMobile ? (
+            <div className="bg-gradient-to-br from-purple-50/90 to-indigo-50/50 dark:from-purple-950/40 dark:to-indigo-950/20 border border-purple-200 dark:border-purple-500/30 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-display font-extrabold text-purple-900 dark:text-purple-200">
+                    Mobile Cloud Mode Active
+                  </h4>
+                  <span className="text-[9px] font-mono text-purple-600 dark:text-purple-400 font-bold">
+                    Cloud-Only Gating Enforced
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-white/70 leading-relaxed">
+                Operating from a mobile device or tablet. Local hardware servers (<code className="font-mono text-[10px] bg-purple-100 dark:bg-purple-900/40 px-1 py-0.5 rounded">localhost:1234</code>) are bypassed. Swarm agents connect directly to high-speed Cloud frontier models.
+              </p>
+              <div className="pt-2 border-t border-purple-200/60 dark:border-white/10 flex flex-wrap gap-1.5 text-[10px] font-mono font-bold">
+                <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                  ✓ Groq LPU (300+ t/s)
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800">
+                  ✓ Google Gemini
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800">
+                  ✓ Anthropic Claude
+                </span>
+              </div>
+            </div>
+          ) : (
           <div className="bg-gradient-to-br from-sky-50/90 to-blue-50/50 dark:from-sky-950/40 dark:to-blue-950/20 border border-sky-200 dark:border-sky-500/30 rounded-2xl p-3 space-y-2.5 shadow-xs">
             <div className="flex items-center justify-between gap-1">
               <div className="flex items-center gap-1.5 shrink-0">
@@ -982,6 +1013,7 @@ function MatrixContent() {
               </div>
             )}
           </div>
+          )}
 
           {/* Hyperparameters: Temperature & Reasoning Effort */}
           <div className="bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-2xl p-3 space-y-2.5 shadow-xs">
@@ -1155,7 +1187,7 @@ function MatrixContent() {
             <div className="flex flex-wrap items-center gap-1.5">
               {[
                 { id: 'ALL', label: 'All' },
-                { id: 'LM Studio (Local)', label: 'LM Studio' },
+                ...(!isMobile ? [{ id: 'LM Studio (Local)', label: 'LM Studio' }] : []),
                 { id: 'Groq', label: 'Groq' },
                 { id: 'NVIDIA', label: 'NVIDIA' },
                 { id: 'Google', label: 'Google' },

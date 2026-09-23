@@ -5,6 +5,8 @@ import path from 'path';
 import fs from 'fs';
 import os from 'os';
 
+import { isMobileUserAgent } from '@/lib/device-detection';
+
 const execFileAsync = promisify(execFile);
 
 export interface DetectedLmModel {
@@ -37,7 +39,31 @@ function resolveLmsExe(): string | null {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { action = 'list', endpointUrl, apiKey, modelId } = body;
+    const { action = 'list', endpointUrl, apiKey, modelId, clientPlatform } = body;
+    const ua = req.headers.get('user-agent') || '';
+    const isMobileClient = clientPlatform === 'mobile' || isMobileUserAgent(ua);
+
+    // If request is from Mobile and listing local models, bypass localhost probing immediately
+    if (isMobileClient && action === 'list') {
+      return NextResponse.json({
+        connected: false,
+        isMobile: true,
+        endpoint: '',
+        activeModel: 'Cloud Models Active',
+        loadedModels: [],
+        models: [],
+        detailedModels: [],
+        message: 'Mobile client detected. Local hardware endpoints bypassed; Cloud models active.'
+      });
+    }
+
+    if (isMobileClient && (action === 'mount' || action === 'unload')) {
+      return NextResponse.json({
+        success: false,
+        error: 'Hardware model mount/unload is only supported on a PC/Desktop host. On mobile, please select Cloud models.'
+      }, { status: 400 });
+    }
+
     const base = (endpointUrl || 'http://localhost:1234/v1').replace(/\/$/, '');
     const serverHost = base.replace(/\/v1$/, '');
 

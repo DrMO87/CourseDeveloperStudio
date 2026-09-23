@@ -414,12 +414,24 @@ def build_plan(sid: str, assets: list[Asset], prompts: dict[str, str]) -> list[P
     evidence = [a for a in assets if a.klass == "EVIDENCE"]
 
     deck_title = f"{COURSE.name} {sid} — student deck"
+    # Resolve brand contract dynamically (supports HUE Brand_Identity_Contract or legacy BRANDING_RULE)
+    brand_uploads = []
+    brand_contract_candidates = [
+        VAULT / "02_Areas" / "horus-university-egypt" / "Brand_Identity_Contract.md",
+        VAULT / "02_Areas" / "horus-pharmacy" / "Brand_Identity_Contract.md",
+        BRANDING_RULE,
+    ]
+    for bc in brand_contract_candidates:
+        if bc.is_file():
+            brand_uploads.append(Upload(bc, bc.name))
+            break
+    if TATA_GUIDE.is_file():
+        brand_uploads.append(Upload(TATA_GUIDE, TATA_GUIDE.name))
+
     common = [
         Upload(bundle / "slides-source.md", "slides-source.md"),
         Upload(bundle / "decisions.md", "decisions.md"),
-        Upload(BRANDING_RULE, "Techno_Square_Branding_Rule.md"),
-        Upload(TATA_GUIDE, "Tata_Mascot_Usage_Guide.md"),
-    ] + [Upload(a.path, a.path.name) for a in reference]
+    ] + brand_uploads + [Upload(a.path, a.path.name) for a in reference]
 
     # Bound by what the mapping says lands on a summary slide — not by whether the
     # filename looks like branding. img-05 is a summary reference and is not brand.
@@ -428,9 +440,7 @@ def build_plan(sid: str, assets: list[Asset], prompts: dict[str, str]) -> list[P
     ]
     summary = [
         Upload(bundle / "home-summary.md", "home-summary.md"),
-        Upload(BRANDING_RULE, "Techno_Square_Branding_Rule.md"),
-        Upload(TATA_GUIDE, "Tata_Mascot_Usage_Guide.md"),
-    ] + [Upload(a.path, a.path.name) for a in summary_refs]
+    ] + brand_uploads + [Upload(a.path, a.path.name) for a in summary_refs]
 
     plan = [
         Pass("deck-a", deck_title, prompts["deck-a"] + evidence_clause(evidence), common, evidence),

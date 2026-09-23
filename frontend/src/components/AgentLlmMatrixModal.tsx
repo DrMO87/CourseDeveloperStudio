@@ -33,6 +33,7 @@ import {
 import { PipelineStage } from '@/lib/types';
 import { LlmProcessLoadingMeter } from './LlmProcessLoadingMeter';
 import { SOTA_2026_MODELS, DiscoveredModel } from '@/lib/llm-catalog';
+import { useDeviceMode, isLocalModel } from '@/lib/device-detection';
 
 export type ModelProvider = 
   | 'Groq' 
@@ -200,6 +201,7 @@ interface Props {
 }
 
 export function AgentLlmMatrixModal({ isOpen, onClose, orgId, onProceedToDossier }: Props) {
+  const { isMobile, isDesktop } = useDeviceMode();
   const [configs, setConfigs] = useState<AgentLlmConfig[]>(DEFAULT_AGENT_MATRIX);
   const [catalog, setCatalog] = useState<ModelOption[]>(COMPREHENSIVE_MODEL_CATALOG);
   const [selectedAgentName, setSelectedAgentName] = useState<string>('KNOWLEDGE_SYNTHESIZER');
@@ -290,14 +292,18 @@ export function AgentLlmMatrixModal({ isOpen, onClose, orgId, onProceedToDossier
     }
   }, [orgId, isOpen]);
 
-  // Ping LM Studio server via server proxy and auto-detect loaded model
+  // Ping LM Studio server via server proxy and auto-detect loaded model (Desktop only)
   const checkLmStudioConnection = async (endpoint: string) => {
+    if (isMobile) {
+      setLmStudioStatus('offline');
+      return;
+    }
     setLmStudioStatus('checking');
     try {
       const res = await fetch('/api/llm/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpointUrl: endpoint })
+        body: JSON.stringify({ endpointUrl: endpoint, clientPlatform: 'desktop' })
       });
       if (res.ok) {
         const data = await res.json();
@@ -317,10 +323,10 @@ export function AgentLlmMatrixModal({ isOpen, onClose, orgId, onProceedToDossier
   };
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !isMobile) {
       checkLmStudioConnection(localLmStudioUrl);
     }
-  }, [isOpen, localLmStudioUrl]);
+  }, [isOpen, localLmStudioUrl, isMobile]);
 
   // Internet & Live Probe Catalog Update Handler
   const handleUpdateModelsViaInternet = async () => {
@@ -474,6 +480,7 @@ export function AgentLlmMatrixModal({ isOpen, onClose, orgId, onProceedToDossier
         };
       }));
     } else if (type === 'LOCAL_LM_STUDIO') {
+      if (isMobile) return;
       setConfigs(prev => prev.map(c => {
         if (!c) return c;
         return {
@@ -561,6 +568,8 @@ export function AgentLlmMatrixModal({ isOpen, onClose, orgId, onProceedToDossier
     if (!Array.isArray(catalog)) return [];
     return catalog.filter(m => {
       if (!m) return false;
+      // MOBILE GATING: Exclude all local models on mobile devices
+      if (isMobile && isLocalModel(m.id, m.provider)) return false;
       if (showOnlyFree && !m.isFree) return false;
       if (providerFilter !== 'ALL' && m.provider !== providerFilter) return false;
       if (searchQuery && searchQuery.trim()) {
@@ -573,7 +582,7 @@ export function AgentLlmMatrixModal({ isOpen, onClose, orgId, onProceedToDossier
       }
       return true;
     });
-  }, [catalog, showOnlyFree, providerFilter, searchQuery]);
+  }, [catalog, showOnlyFree, providerFilter, searchQuery, isMobile]);
 
   // Provider Pill Badge Helper
   const getProviderColor = (p: ModelProvider) => {

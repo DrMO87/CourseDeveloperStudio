@@ -49,6 +49,7 @@ function MainLayoutContent({ children }: { children: React.ReactNode }) {
           </span>
         </div>
 
+        <div className="flex items-center gap-2">
           {/* Dynamic Device Mode Badge & PWA Install */}
           <PwaInstallPrompt />
 
