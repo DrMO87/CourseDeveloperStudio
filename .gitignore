@@ -55,4 +55,8 @@ MY COURSE TEMPLATE/*.pptx
 *.wdp
 *.emf
 vaults/**/_assets/
+vaults/**/assets/
+vaults/**/NotebookLM_Generated/
+.nlm-downloads/
+scratch*.py
 

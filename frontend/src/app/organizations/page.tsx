@@ -37,6 +37,7 @@ import {
   updateOrganization,
   deleteOrganization,
   DEFAULT_CREATED_ORGANIZATIONS,
+  DEFAULT_ACTIVE_ORGANIZATIONS,
   DEFAULT_INSTITUTION_TEMPLATES,
   MODERN_ARABIC_FONTS,
   MODERN_LATIN_FONTS,
@@ -148,7 +149,7 @@ function OrganizationsPageContent() {
       }
     } catch (err) {
       console.error(err);
-      setOrganizations(DEFAULT_CREATED_ORGANIZATIONS);
+      setOrganizations(DEFAULT_ACTIVE_ORGANIZATIONS);
     } finally {
       setLoading(false);
     }

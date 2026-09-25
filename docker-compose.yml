@@ -1,0 +1,61 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: course-developer-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_URLS=http://+:5000
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ENABLE_SWAGGER=true
+      - ENABLE_HTTPS_REDIRECTION=false
+      - SUPABASE_CONNECTION_STRING=${SUPABASE_CONNECTION_STRING:-}
+      - SUPABASE_URL=${SUPABASE_URL:-https://gjxhfyfonjdcaimxjipp.supabase.co}
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - Obsidian__VaultPath=/app/vaults
+    volumes:
+      - ./vaults:/app/vaults
+      - ./obsidian-vault-template:/app/obsidian-vault-template
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-https://gjxhfyfonjdcaimxjipp.supabase.co}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-dummy-key}
+        - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-/backend-api}
+    container_name: course-developer-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - INTERNAL_API_URL=http://backend:5000
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-https://gjxhfyfonjdcaimxjipp.supabase.co}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-dummy-key}
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-/backend-api}
+      - VAULT_ROOT=/app
+    volumes:
+      - ./vaults:/app/vaults
+      - ./obsidian-vault-template:/app/obsidian-vault-template
+    depends_on:
+      - backend
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: course-developer-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --protocol http2 --url http://frontend:3000
+    depends_on:
+      - frontend
+
+networks:
+  default:
+    name: course-developer-network

@@ -33,7 +33,8 @@ import {
 import { PipelineStage } from '@/lib/types';
 import { LlmProcessLoadingMeter } from './LlmProcessLoadingMeter';
 import { SOTA_2026_MODELS, DiscoveredModel } from '@/lib/llm-catalog';
-import { useDeviceMode, isLocalModel } from '@/lib/device-detection';
+import { isLocalModel } from '@/lib/device-detection';
+import { useDeviceMode } from '@/lib/use-device-mode';
 
 export type ModelProvider = 
   | 'Groq' 

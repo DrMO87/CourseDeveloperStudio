@@ -231,6 +231,10 @@ export const DEFAULT_INSTITUTION_TEMPLATES: Organization[] = [
   }
 ];
 
+export const DEFAULT_ACTIVE_ORGANIZATIONS: Organization[] = [
+  DEFAULT_INSTITUTION_TEMPLATES[0] // Horus University — Egypt (Faculty of Pharmacy)
+];
+
 // Helper for persistent local storage caching
 function getLocal<T>(key: string, defaultVal: T): T {
   if (typeof window === 'undefined') return defaultVal;
@@ -261,6 +265,13 @@ function setLocal<T>(key: string, val: T, triggerEvent: boolean = false): void {
 
 // ── Organizations & Settings ──
 
+const DEMO_TEMPLATE_IDS = new Set([
+  'org-template-technosquare',
+  'org-template-nursery',
+  'org-template-school',
+  'org-template-training'
+]);
+
 export async function fetchOrganizations(): Promise<Organization[]> {
   try {
     const { data, error } = await supabase
@@ -269,19 +280,29 @@ export async function fetchOrganizations(): Promise<Organization[]> {
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      const local = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-      const safeLocal = Array.isArray(local) ? local : DEFAULT_INSTITUTION_TEMPLATES;
+      const local = getLocal<Organization[]>('cds_organizations', DEFAULT_ACTIVE_ORGANIZATIONS);
+      const safeLocal = Array.isArray(local) ? local : DEFAULT_ACTIVE_ORGANIZATIONS;
       const remoteIds = new Set(data.map(d => d.id));
-      const combined = [...data, ...safeLocal.filter(l => l && !remoteIds.has(l.id))];
-      setLocal('cds_organizations', combined);
-      return combined;
+      const combined = [
+        ...data.filter(d => !DEMO_TEMPLATE_IDS.has(d.id)),
+        ...safeLocal.filter(l => l && !remoteIds.has(l.id) && !DEMO_TEMPLATE_IDS.has(l.id))
+      ];
+      const finalResult = combined.length > 0 ? combined : DEFAULT_ACTIVE_ORGANIZATIONS;
+      setLocal('cds_organizations', finalResult);
+      return finalResult;
     }
   } catch (err) {
     console.warn('Supabase fetchOrganizations fallback:', err);
   }
 
-  const fallback = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-  return Array.isArray(fallback) && fallback.length > 0 ? fallback : DEFAULT_INSTITUTION_TEMPLATES;
+  const rawLocal = getLocal<Organization[]>('cds_organizations', DEFAULT_ACTIVE_ORGANIZATIONS);
+  const filtered = Array.isArray(rawLocal) && rawLocal.length > 0
+    ? rawLocal.filter(o => o && !DEMO_TEMPLATE_IDS.has(o.id))
+    : DEFAULT_ACTIVE_ORGANIZATIONS;
+
+  const result = filtered.length > 0 ? filtered : DEFAULT_ACTIVE_ORGANIZATIONS;
+  setLocal('cds_organizations', result);
+  return result;
 }
 
 export async function fetchOrganizationById(id: string): Promise<Organization | null> {
@@ -321,8 +342,8 @@ export async function createOrganization(org: Partial<Organization>): Promise<Or
     console.warn('Supabase insert organization fallback:', err);
   }
 
-  const local = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-  setLocal('cds_organizations', [payload, ...local.filter(o => o.id !== payload.id)]);
+  const local = getLocal<Organization[]>('cds_organizations', DEFAULT_ACTIVE_ORGANIZATIONS);
+  setLocal('cds_organizations', [payload, ...local.filter(o => o.id !== payload.id)], true);
   return payload;
 }
 
@@ -334,8 +355,8 @@ export async function updateOrganization(id: string, updates: Partial<Organizati
     await supabase.from('organizations').update(updates).eq('id', id);
   } catch {}
 
-  const local = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-  setLocal('cds_organizations', local.map(o => o.id === id ? merged : o));
+  const local = getLocal<Organization[]>('cds_organizations', DEFAULT_ACTIVE_ORGANIZATIONS);
+  setLocal('cds_organizations', local.map(o => o.id === id ? merged : o), true);
   return merged;
 }
 
@@ -344,8 +365,8 @@ export async function deleteOrganization(id: string): Promise<void> {
     await supabase.from('organizations').delete().eq('id', id);
   } catch {}
 
-  const local = getLocal<Organization[]>('cds_organizations', DEFAULT_INSTITUTION_TEMPLATES);
-  setLocal('cds_organizations', local.filter(o => o.id !== id));
+  const local = getLocal<Organization[]>('cds_organizations', DEFAULT_ACTIVE_ORGANIZATIONS);
+  setLocal('cds_organizations', local.filter(o => o.id !== id), true);
 }
 
 // ── Quality Gate Definitions ──

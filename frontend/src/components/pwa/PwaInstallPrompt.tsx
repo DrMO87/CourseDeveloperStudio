@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, Monitor, CheckCircle2, Sparkles } from 'lucide-react';
-import { useDeviceMode } from '@/lib/device-detection';
+import { useDeviceMode } from '@/lib/use-device-mode';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;

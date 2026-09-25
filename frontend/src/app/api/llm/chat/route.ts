@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     let base = (endpointUrl || 'http://localhost:1234/v1').replace(/\/$/, '');
     let resolvedApiKey = apiKey;
 
-    // 2. Intelligent Cloud Provider Auto-Routing
+    // 2. Intelligent Cloud & Local Provider Auto-Routing
     if (typeof targetModel === 'string' && targetModel.startsWith('groq/')) {
       base = 'https://api.groq.com/openai/v1';
       targetModel = targetModel.replace(/^groq\//, '');
@@ -35,6 +35,13 @@ export async function POST(req: NextRequest) {
       base = 'https://api.deepseek.com/v1';
       targetModel = targetModel.replace(/^deepseek\//, '');
       resolvedApiKey = resolvedApiKey || process.env.DEEPSEEK_API_KEY || '';
+    } else if (typeof targetModel === 'string' && targetModel.startsWith('nvidia/')) {
+      base = 'https://integrate.api.nvidia.com/v1';
+      targetModel = targetModel.replace(/^nvidia\//, '');
+      resolvedApiKey = resolvedApiKey || process.env.NVIDIA_API_KEY || '';
+    } else if (typeof targetModel === 'string' && targetModel.startsWith('local/ollama/')) {
+      base = 'http://localhost:11434/v1';
+      targetModel = targetModel.replace(/^local\/ollama\//, '');
     } else if (typeof targetModel === 'string' && targetModel.startsWith('local/lm-studio/')) {
       targetModel = targetModel.replace(/^local\/lm-studio\//, '');
     }
@@ -145,6 +152,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      text: content,
       content,
       model: data.model || targetModel,
       usage: data.usage

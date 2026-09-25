@@ -32,7 +32,8 @@ import { LlmProcessLoadingMeter } from '@/components/LlmProcessLoadingMeter';
 import { SOTA_2026_MODELS, DiscoveredModel } from '@/lib/llm-catalog';
 import { WorkflowProgressBar } from '@/components/layout/WorkflowProgressBar';
 import { fetchProjects } from '@/lib/supabase';
-import { useDeviceMode, isLocalModel } from '@/lib/device-detection';
+import { isLocalModel } from '@/lib/device-detection';
+import { useDeviceMode } from '@/lib/use-device-mode';
 import { 
   ModelProvider, 
   ModelOption, 
@@ -391,6 +392,7 @@ function MatrixContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          endpointUrl: localLmStudioUrl,
           model: activeConfig.modelId,
           messages: [
             {
@@ -407,10 +409,11 @@ function MatrixContent() {
       });
 
       const data = await res.json();
-      if (res.ok && data.text) {
+      const outputText = data.text || data.content;
+      if (res.ok && outputText) {
         setTestResult({
           success: true,
-          message: `200 OK (${data.provider || activeConfig.provider}): "${data.text.slice(0, 140)}..."`
+          message: `200 OK (${data.provider || activeConfig.provider}): "${outputText.slice(0, 140)}..."`
         });
         if (typeof window !== 'undefined') {
           localStorage.setItem('cds_llm_verified', 'true');
